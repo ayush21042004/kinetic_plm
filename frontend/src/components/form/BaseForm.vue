@@ -1192,7 +1192,23 @@ const resetPasswordUserName = ref('');
 const resetPasswordUserEmail = ref('');
 
 const isButtonVisible = (btn: any) => {
-    if (!btn || !btn.invisible) return true;
+    if (!btn) return false;
+
+    // Smart buttons backed by a count/value field should stay hidden when empty.
+    if (btn.field) {
+        const rawValue = props.formData?.[btn.field];
+        if (rawValue === null || rawValue === undefined || rawValue === '' || rawValue === false) {
+            return false;
+        }
+        if (typeof rawValue === 'number' && rawValue <= 0) {
+            return false;
+        }
+        if (Array.isArray(rawValue) && rawValue.length === 0) {
+            return false;
+        }
+    }
+
+    if (!btn.invisible) return true;
     return !evaluateDomain(btn.invisible, false);
 };
 

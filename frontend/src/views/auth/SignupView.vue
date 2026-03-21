@@ -196,6 +196,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '../../core/useAuth';
 import api from '../../core/api';
 import KineticLogo from '@/components/KineticLogo.vue';
+import { DEFAULT_AUTHENTICATED_ROUTE } from '@/constants/routes';
 
 const router = useRouter();
 const { signup } = useAuth();
@@ -235,9 +236,8 @@ const handleSignup = async () => {
   error.value = '';
 
   try {
-    const response = await signup(email.value, password.value, fullName.value);
-    // Auto-login successful - redirect to home
-    router.push('/dashboard');
+    await signup(email.value, password.value, fullName.value);
+    router.push(DEFAULT_AUTHENTICATED_ROUTE);
   } catch (err: any) {
     if (err.response?.status === 422) {
       const validationErrors = err.response?.data?.detail;

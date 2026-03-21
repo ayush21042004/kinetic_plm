@@ -363,17 +363,21 @@ const fetchMenu = async () => {
     try {
         const resp = await api.get('/models/ui/menu');
         // Map string icons to components
-        menuGroups.value = resp.data.map((group: any) => ({
+        menuGroups.value = resp.data
+            .map((group: any) => ({
             ...group,
-            items: group.items.map((item: any) => ({
+            items: group.items
+                .filter((item: any) => item.path !== '/dashboard' && item.name !== 'dashboard')
+                .map((item: any) => ({
                 ...item,
                 icon: iconMap[item.icon] || LayoutGrid,
                 children: item.children ? item.children.map((child: any) => ({
                     ...child,
                     icon: iconMap[child.icon] || LayoutGrid
                 })) : undefined
+                }))
             }))
-        }));
+            .filter((group: MenuGroup) => group.items.length > 0);
     } catch (e) {
         // Failed to fetch menu - handle silently
     }

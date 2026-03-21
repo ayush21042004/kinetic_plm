@@ -48,6 +48,7 @@ class Version(ZnovaModel):
 
     bom_count = fields.Integer(label="BoM", compute="_compute_bom_count", store=True)
     eco_count = fields.Integer(label="ECO", compute="_compute_eco_count", store=True)
+    comparison_count = fields.Integer(label="Compare", compute="_compute_comparison_count", store=False)
 
     _role_permissions = {
         "admin":       {"create": True,  "read": True, "write": True,  "delete": True,  "domain": []},
@@ -59,7 +60,7 @@ class Version(ZnovaModel):
     _search_config = {
         "filters": [
             {"name": "draft",    "label": "Draft",    "domain": "[('state', '=', 'draft')]"},
-            {"name": "active",   "label": "Active",   "domain": "[('state', '=', 'active')]"},
+            {"name": "active",   "label": "Active",   "domain": "[('state', '=', 'active')]", "default": True},
             {"name": "archived", "label": "Archived", "domain": "[('state', '=', 'archived')]"},
         ],
         "group_by": [
@@ -114,6 +115,14 @@ class Version(ZnovaModel):
                     "field": "eco_count",
                     "method": "action_view_eco",
                     "invisible": "[('eco_id', '=', false)]"
+                },
+                {
+                    "name": "compare_versions",
+                    "label": "Compare Versions",
+                    "icon": "GitCompare",
+                    "field": "comparison_count",
+                    "method": "action_open_comparison",
+                    "invisible": "[('comparison_count', '=', 0)]"
                 }
             ],
             "groups": [
@@ -185,6 +194,137 @@ class Version(ZnovaModel):
     @api.depends("eco_id")
     def _compute_eco_count(self):
         self.eco_count = 1 if self.eco_id else 0
+
+    @api.depends("product_id")
+    def _compute_comparison_count(self):
+        self.comparison_count = len(self._get_other_versions())
+
+    def _comparison_field_labels(self):
+        return {
+            "name": "Product Name",
+            "default_code": "Internal Reference",
+            "description": "Change Notes",
+            "sale_price": "Sale Price",
+            "cost_price": "Cost Price",
+            "attachments": "Attachments",
+        }
+
+    def _serialize_comparison_value(self, value):
+        if value is None:
+            return "-"
+        if isinstance(value, list):
+            # Handle attachment lists — extract filenames
+            names = []
+            for item in value:
+                if isinstance(item, dict):
+                    names.append(item.get("name") or item.get("filename") or str(item))
+                elif hasattr(item, "name"):
+                    names.append(item.name)
+                else:
+                    names.append(str(item))
+            return ", ".join(names) if names else "-"
+        return value
+
+    def _get_attachments(self):
+        """Manually fetch attachments since it's a virtual field."""
+        from backend.core.registry import registry
+        db = self._get_db()
+        attachment_model = registry.get_model("ir.attachment")
+        if not db or not attachment_model or not self.id:
+            return []
+        
+        attachments = db.query(attachment_model).filter(
+            attachment_model.res_model == self._model_name_,
+            attachment_model.res_id == self.id,
+            attachment_model.res_field == "attachments"
+        ).all()
+        
+        # Return as list of dicts for comparison
+        return [{"id": a.id, "name": a.name} for a in attachments]
+
+    def _get_other_versions(self):
+        from backend.core.base_model import Environment
+
+        db = self._get_db()
+        if not db or not self.product_id:
+            return []
+
+        env = Environment(db)
+        versions = env["product.version"].search(
+            [("product_id", "=", self.product_id.id), ("id", "!=", self.id)],
+            order="version desc"
+        )
+        return list(getattr(versions, "_records", versions or []))
+
+    def build_comparison_with(self, other_version):
+        field_changes = []
+        changed_count = 0
+
+        for field_name, label in self._comparison_field_labels().items():
+            if field_name == "attachments":
+                old_value = other_version._get_attachments()
+                new_value = self._get_attachments()
+            else:
+                old_value = getattr(other_version, field_name, None)
+                new_value = getattr(self, field_name, None)
+
+            if old_value != new_value:
+                changed_count += 1
+                field_changes.append({
+                    "field": field_name,
+                    "label": label,
+                    "old_value": self._serialize_comparison_value(old_value),
+                    "new_value": self._serialize_comparison_value(new_value),
+                    "change_type": "updated",
+                })
+
+        return {
+            "target": {
+                "id": other_version.id,
+                "name": other_version.name,
+                "version": other_version.version,
+                "state": other_version.state,
+            },
+            "summary": {
+                "changed_fields": changed_count,
+            },
+            "field_changes": field_changes,
+        }
+
+    def get_comparison_payload(self):
+        comparisons = [self.build_comparison_with(other) for other in self._get_other_versions()]
+        return {
+            "mode": "version_history",
+            "title": f"Version Comparison: {self.name}",
+            "subtitle": f"Version {self.version} compared with all versions of {self.product_id.name if self.product_id else 'this product'}",
+            "subject": {
+                "id": self.id,
+                "name": self.name,
+                "version": self.version,
+                "state": self.state,
+                "product_name": self.product_id.name if self.product_id else None,
+            },
+            "summary": {
+                "comparisons": len(comparisons),
+                "changed_fields": sum(item["summary"]["changed_fields"] for item in comparisons),
+            },
+            "comparisons": comparisons,
+        }
+
+    def action_open_comparison(self):
+        return {
+            "type": "ir.actions.client",
+            "tag": "open_comparison_view",
+            "params": {
+                "model": self._model_name_,
+                "record_id": self.id,
+                "title": f"Compare {self.name}",
+            }
+        }
+
+    def _get_db(self):
+        from sqlalchemy.orm import object_session
+        return object_session(self)
 
     def action_view_bom(self):
         if not self.bom_id:

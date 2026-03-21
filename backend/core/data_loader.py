@@ -185,6 +185,41 @@ class DataLoader:
         if model_name == 'cron' and 'code' in vals:
             return self.env['cron'].search([('code', '=', vals['code'])], limit=1)
 
+        # if model_name == 'product.version' and 'product_id' in vals and 'version' in vals:
+        #     return self.env['product.version'].search([
+        #         ('product_id', '=', vals['product_id']),
+        #         ('version', '=', vals['version']),
+        #     ], limit=1)
+
+        # if model_name == 'mrp.bom' and 'product_version_id' in vals and 'version' in vals:
+        #     return self.env['mrp.bom'].search([
+        #         ('product_version_id', '=', vals['product_version_id']),
+        #         ('version', '=', vals['version']),
+        #     ], limit=1)
+
+        # if model_name == 'mrp.bom.line' and 'bom_id' in vals and 'component_product_id' in vals:
+        #     return self.env['mrp.bom.line'].search([
+        #         ('bom_id', '=', vals['bom_id']),
+        #         ('component_product_id', '=', vals['component_product_id']),
+        #     ], limit=1)
+
+        # if model_name == 'mrp.routing.workcenter' and 'bom_id' in vals and 'operation' in vals:
+        #     return self.env['mrp.routing.workcenter'].search([
+        #         ('bom_id', '=', vals['bom_id']),
+        #         ('operation', '=', vals['operation']),
+        #     ], limit=1)
+
+        # if model_name == 'plm.eco' and 'type' in vals and 'description' in vals:
+        #     domain = [
+        #         ('type', '=', vals['type']),
+        #         ('description', '=', vals['description']),
+        #     ]
+        #     if vals.get('product_id'):
+        #         domain.append(('product_id', '=', vals['product_id']))
+        #     if vals.get('bom_id'):
+        #         domain.append(('bom_id', '=', vals['bom_id']))
+        #     return self.env['plm.eco'].search(domain, limit=1)
+
         # Generic fallback for other models (like bcm.*)
         # Check if we can find by name/rec_name
         name_field = getattr(model_cls, '_name_field_', 'name')

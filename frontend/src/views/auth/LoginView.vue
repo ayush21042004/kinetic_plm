@@ -142,6 +142,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '../../core/useAuth';
 import api from '../../core/api';
 import KineticLogo from '@/components/KineticLogo.vue';
+import { DEFAULT_AUTHENTICATED_ROUTE } from '@/constants/routes';
 
 const router = useRouter();
 const { login } = useAuth();
@@ -180,7 +181,7 @@ const handleLogin = async () => {
     }
     
     // Redirect immediately without success message
-    router.push('/dashboard');
+    router.push(DEFAULT_AUTHENTICATED_ROUTE);
   } catch (err: any) {
     error.value = err.response?.data?.detail || 'Login failed. Please check your credentials.';
     loading.value = false;

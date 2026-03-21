@@ -269,10 +269,13 @@ class Many2one(BaseField):
             "user": "User",
             "role": "Role",
             "mrp.bom.line": "Line",
+            "mrp.routing.workcenter": "RoutingWorkcenter",
             "plm.eco.line": "EcoLine",
+            "plm.eco.workorder": "EcoWorkorder",
             "plm.eco.approval": "EcoApproval",
             "plm.eco.stage": "EcoStage",
             "plm.eco.stage.line": "EcoStageLine",
+            "work.center": "WorkCenter",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]
@@ -343,10 +346,13 @@ class One2many(BaseField):
             "user": "User",
             "role": "Role",
             "mrp.bom.line": "Line",
+            "mrp.routing.workcenter": "RoutingWorkcenter",
             "plm.eco.line": "EcoLine",
+            "plm.eco.workorder": "EcoWorkorder",
             "plm.eco.approval": "EcoApproval",
             "plm.eco.stage": "EcoStage",
             "plm.eco.stage.line": "EcoStageLine",
+            "work.center": "WorkCenter",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]
@@ -485,9 +491,12 @@ class Many2many(BaseField):
             "user": "User",
             "role": "Role",
             "mrp.bom.line": "Line",
+            "mrp.routing.workcenter": "RoutingWorkcenter",
             "plm.eco.line": "EcoLine",
+            "plm.eco.workorder": "EcoWorkorder",
             "plm.eco.stage": "EcoStage",
             "plm.eco.stage.line": "EcoStageLine",
+            "work.center": "WorkCenter",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]

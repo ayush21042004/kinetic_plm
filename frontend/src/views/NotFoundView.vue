@@ -9,7 +9,7 @@
       <div class="error-actions">
         <button @click="goHome" class="btn btn-primary">
           <Home class="icon-sm" />
-          <span>Go to Dashboard</span>
+          <span>Go to ECO</span>
         </button>
         <button @click="goBack" class="btn btn-secondary">
           <ArrowLeft class="icon-sm" />
@@ -23,11 +23,12 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { Home, ArrowLeft } from 'lucide-vue-next';
+import { DEFAULT_AUTHENTICATED_ROUTE } from '@/constants/routes';
 
 const router = useRouter();
 
 const goHome = () => {
-  router.push('/dashboard');
+  router.push(DEFAULT_AUTHENTICATED_ROUTE);
 };
 
 const goBack = () => {

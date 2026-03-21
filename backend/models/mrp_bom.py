@@ -39,9 +39,18 @@ class Bom(ZnovaModel):
         "mrp.bom.line", "bom_id",
         label="Components",
         columns=["component_product_id", "quantity", "notes"],
-        readonly="[('state', 'in', ['active', 'archived'])]"
+        readonly="[('state', 'in', ['active', 'archived'])]",
+        show_label=False,
+    )
+    routing_workcenter_ids = fields.One2many(
+        "mrp.routing.workcenter", "bom_id",
+        label="Operations",
+        columns=["operation", "work_center_id", "duration_minutes"],
+        readonly="[('state', 'in', ['active', 'archived'])]",
+        show_label=False,
     )
     eco_count = fields.Integer(label="ECO", compute="_compute_eco_count", store=True)
+    comparison_count = fields.Integer(label="Compare", compute="_compute_comparison_count", store=False)
 
     _role_permissions = {
         "admin":       {"create": True,  "read": True, "write": True,  "delete": True,  "domain": []},
@@ -53,7 +62,7 @@ class Bom(ZnovaModel):
     _search_config = {
         "filters": [
             {"name": "draft",    "label": "Draft",    "domain": "[('state', '=', 'draft')]"},
-            {"name": "active",   "label": "Active",   "domain": "[('state', '=', 'active')]"},
+            {"name": "active",   "label": "Active",   "domain": "[('state', '=', 'active')]", "default": True},
             {"name": "archived", "label": "Archived", "domain": "[('state', '=', 'archived')]"},
         ],
         "group_by": [
@@ -100,6 +109,14 @@ class Bom(ZnovaModel):
                     "field": "eco_count",
                     "method": "action_view_eco",
                     "invisible": "[('eco_id', '=', false)]"
+                },
+                {
+                    "name": "compare_versions",
+                    "label": "Compare Versions",
+                    "icon": "GitCompare",
+                    "field": "comparison_count",
+                    "method": "action_open_comparison",
+                    "invisible": "[('comparison_count', '=', 0)]"
                 }
             ],
             "groups": [
@@ -110,6 +127,10 @@ class Bom(ZnovaModel):
                 {
                     "title": "Components",
                     "fields": ["bom_line_ids"]
+                },
+                {
+                    "title": "Work Orders",
+                    "fields": ["routing_workcenter_ids"]
                 },
                 {
                     "title": "Notes",
@@ -127,6 +148,10 @@ class Bom(ZnovaModel):
     @api.depends("eco_id")
     def _compute_eco_count(self):
         self.eco_count = 1 if self.eco_id else 0
+
+    @api.depends("product_version_id")
+    def _compute_comparison_count(self):
+        self.comparison_count = len(self._get_other_versions())
 
     def action_set_active(self):
         self.write({"state": "active"})
@@ -176,6 +201,232 @@ class Bom(ZnovaModel):
             "view_mode": "form",
             "res_id": self.eco_id.id,
             "name": f"ECO for {self.name}"
+        }
+
+    def _get_db(self):
+        from sqlalchemy.orm import object_session
+        return object_session(self)
+
+    def _get_other_versions(self):
+        from backend.core.base_model import Environment
+
+        db = self._get_db()
+        if not db or not self.product_version_id or not self.product_version_id.product_id:
+            return []
+
+        env = Environment(db)
+        version_records = env["product.version"].search(
+            [("product_id", "=", self.product_version_id.product_id.id)],
+            order="version desc"
+        )
+        version_ids = [version.id for version in list(getattr(version_records, "_records", version_records or []))]
+        if not version_ids:
+            return []
+
+        boms = env["mrp.bom"].search(
+            [("product_version_id", "in", version_ids), ("id", "!=", self.id)],
+            order="version desc"
+        )
+        return list(getattr(boms, "_records", boms or []))
+
+    def get_comparison_payload(self):
+        comparisons = [self.build_comparison_with(other) for other in self._get_other_versions()]
+        product_name = None
+        if self.product_version_id and self.product_version_id.product_id:
+            product_name = self.product_version_id.product_id.name
+
+        return {
+            "mode": "version_history",
+            "entity_type": "bom",
+            "title": f"BoM Comparison: {self.name}",
+            "subtitle": f"BoM version {self.version} compared with all BoMs of {product_name or 'this product'}",
+            "subject": {
+                "id": self.id,
+                "name": self.name,
+                "version": self.version,
+                "state": self.state,
+                "product_name": product_name,
+            },
+            "summary": {
+                "comparisons": len(comparisons),
+                "changed_fields": sum(item["summary"]["changed_fields"] for item in comparisons),
+                "component_changes": sum(item["summary"]["component_changes"] for item in comparisons),
+                "workorder_changes": sum(item["summary"]["workorder_changes"] for item in comparisons),
+            },
+            "comparisons": [
+                {
+                    "target": item["old_record"],
+                    "summary": item["summary"],
+                    "field_changes": item["field_changes"],
+                    "component_changes": item["component_changes"],
+                    "workorder_changes": item["workorder_changes"],
+                }
+                for item in comparisons
+            ],
+        }
+
+    def action_open_comparison(self):
+        return {
+            "type": "ir.actions.client",
+            "tag": "open_comparison_view",
+            "params": {
+                "model": self._model_name_,
+                "record_id": self.id,
+                "title": f"Compare {self.name}",
+            }
+        }
+
+    def _serialize_comparison_value(self, value):
+        if value is None:
+            return "-"
+        if isinstance(value, dict):
+            return " | ".join(f"{k}: {v}" for k, v in value.items()) if value else "-"
+        return value
+
+    def _get_item_diff(self, old_item, new_item, field_labels):
+        """Identifies only changed fields and applies human-readable labels."""
+        old_diff = {}
+        new_diff = {}
+        
+        # Always include the identity label for added/removed items if available
+        if not old_item and new_item and "label" in new_item:
+            new_diff["Entity"] = new_item["label"]
+        elif old_item and not new_item and "label" in old_item:
+            old_diff["Entity"] = old_item["label"]
+
+        for key, label in field_labels.items():
+            ov = old_item.get(key) if old_item else None
+            nv = new_item.get(key) if new_item else None
+            
+            # Treat None and empty string as equivalent to avoid "Notes: -" noise
+            if not ov and not nv:
+                continue
+                
+            if ov != nv:
+                old_diff[label] = ov if ov is not None else "-"
+                new_diff[label] = nv if nv is not None else "-"
+        return old_diff, new_diff
+
+    def _build_component_map(self):
+        component_map = {}
+        for line in self.bom_line_ids or []:
+            component = line.component_product_id
+            key = component.id if component else f"line-{line.id}"
+            component_map[key] = {
+                "label": component.name if component else f"Component #{key}",
+                "quantity": line.quantity or 0,
+                "notes": line.notes or "",
+            }
+        return component_map
+
+    def _build_workorder_map(self):
+        workorder_map = {}
+        for line in self.routing_workcenter_ids or []:
+            work_center = line.work_center_id
+            key = f"{line.operation}::{work_center.id if work_center else 'none'}"
+            workorder_map[key] = {
+                "label": line.operation or "Work Order",
+                "work_center": work_center.name if work_center else "-",
+                "duration_minutes": line.duration_minutes or 0,
+            }
+        return workorder_map
+
+    def build_comparison_with(self, other_bom):
+        field_changes = []
+        for field_name, label in {
+            "notes": "Notes",
+        }.items():
+            old_value = getattr(other_bom, field_name, None)
+            new_value = getattr(self, field_name, None)
+            if old_value != new_value:
+                field_changes.append({
+                    "field": field_name,
+                    "label": label,
+                    "old_value": self._serialize_comparison_value(old_value),
+                    "new_value": self._serialize_comparison_value(new_value),
+                    "change_type": "updated",
+                })
+
+        component_labels = {"quantity": "Quantity", "notes": "Notes"}
+        old_components = other_bom._build_component_map()
+        new_components = self._build_component_map()
+        component_changes = []
+        for key in sorted(set(old_components.keys()) | set(new_components.keys())):
+            old_item = old_components.get(key)
+            new_item = new_components.get(key)
+            
+            if old_item and not new_item:
+                # Removed: Show all fields with labels
+                old_v, _ = self._get_item_diff(old_item, None, component_labels)
+                component_changes.append({
+                    "label": old_item["label"],
+                    "change_type": "removed",
+                    "old_value": self._serialize_comparison_value(old_v),
+                    "new_value": None,
+                })
+            elif new_item and not old_item:
+                # Added: Show all fields with labels
+                _, new_v = self._get_item_diff(None, new_item, component_labels)
+                component_changes.append({
+                    "label": new_item["label"],
+                    "change_type": "added",
+                    "old_value": None,
+                    "new_value": self._serialize_comparison_value(new_v),
+                })
+            elif old_item != new_item:
+                # Updated: Show only changed fields
+                old_v, new_v = self._get_item_diff(old_item, new_item, component_labels)
+                component_changes.append({
+                    "label": new_item["label"],
+                    "change_type": "updated",
+                    "old_value": self._serialize_comparison_value(old_v),
+                    "new_value": self._serialize_comparison_value(new_v),
+                })
+
+        workorder_labels = {"work_center": "Work Center", "duration_minutes": "Duration (min)"}
+        old_workorders = other_bom._build_workorder_map()
+        new_workorders = self._build_workorder_map()
+        workorder_changes = []
+        for key in sorted(set(old_workorders.keys()) | set(new_workorders.keys())):
+            old_item = old_workorders.get(key)
+            new_item = new_workorders.get(key)
+            
+            if old_item and not new_item:
+                old_v, _ = self._get_item_diff(old_item, None, workorder_labels)
+                workorder_changes.append({
+                    "label": old_item["label"],
+                    "change_type": "removed",
+                    "old_value": self._serialize_comparison_value(old_v),
+                    "new_value": None,
+                })
+            elif new_item and not old_item:
+                _, new_v = self._get_item_diff(None, new_item, workorder_labels)
+                workorder_changes.append({
+                    "label": new_item["label"],
+                    "change_type": "added",
+                    "old_value": None,
+                    "new_value": self._serialize_comparison_value(new_v),
+                })
+            elif old_item != new_item:
+                old_v, new_v = self._get_item_diff(old_item, new_item, workorder_labels)
+                workorder_changes.append({
+                    "label": new_item["label"],
+                    "change_type": "updated",
+                    "old_value": self._serialize_comparison_value(old_v),
+                    "new_value": self._serialize_comparison_value(new_v),
+                })
+
+        return {
+            "old_record": {"id": other_bom.id, "name": other_bom.name, "version": other_bom.version, "state": other_bom.state},
+            "new_record": {"id": self.id, "name": self.name, "version": self.version, "state": self.state},
+            "summary": {
+                "changed_fields": len(field_changes),
+                "component_changes": len(component_changes),
+                "workorder_changes": len(workorder_changes),
+            },
+            "field_changes": field_changes,
+            "component_changes": component_changes,
+            "workorder_changes": workorder_changes,
         }
 
     @classmethod
@@ -261,22 +512,22 @@ class Bom(ZnovaModel):
     @classmethod
     def _validate_no_self_reference(cls, env, bom_version_id, lines, exclude_id=None):
         """
-        1. A product version can only have one BOM.
+        1. A product version can only have one non-archived BOM.
         2. No component product can share the same version as the BOM target.
         """
         if not bom_version_id:
             return
 
-        # ── Check 1: one BOM per product version ──────────────────────────────
+        # ── Check 1: one non-archived BOM per product version ─────────────────
         existing_bom = env["mrp.bom"].search(
-            [("product_version_id", "=", bom_version_id)], limit=1
+            [("product_version_id", "=", bom_version_id), ("state", "!=", "archived")], limit=1
         )
         if existing_bom:
             # On write, ignore the current record itself
             if not exclude_id or existing_bom.id != exclude_id:
                 raise UserError(
                     f"A BoM already exists for this product version. "
-                    f"Each product version can only have one Bill of Materials."
+                    f"Each product version can only have one non-archived Bill of Materials."
                 )
 
         # ── Check 2: no component = BOM target version ─────────────────────────

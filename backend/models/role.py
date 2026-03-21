@@ -11,7 +11,7 @@ class Role(ZnovaModel):
     domain_rules = fields.JSON(label="Domain Rules", default=dict)
     
     # Reverse relation
-    users = fields.One2many("user", "role_id", label="Users", show_label=True)
+    users = fields.One2many("user", "role_id", label="Users", show_label=False)
 
     def get_model_permissions(self, model_name):
         """Get CRUD permissions for a specific model"""

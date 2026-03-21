@@ -12,7 +12,8 @@ class Line(ZnovaModel):
         "mrp.bom", label="Bill of Materials", required=True, ondelete="cascade"
     )
     component_product_id = fields.Many2one(
-        "product.version", label="Component Version", required=True, tracking=True
+        "product.version", label="Component Version", required=True, tracking=True,
+        domain="[('state', '=', 'active')]"
     )
     quantity = fields.Integer(label="Quantity", required=True, default=1, tracking=True)
     notes = fields.Text(label="Notes")

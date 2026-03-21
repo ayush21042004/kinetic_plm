@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuth } from '../core/useAuth';
 import { useUserStore } from '../stores/userStore';
+import { DEFAULT_AUTHENTICATED_ROUTE } from '../constants/routes';
 
 const routes = [
     {
@@ -40,15 +41,10 @@ const routes = [
         meta: { guest: true }
     },
     {
-        path: '/dashboard',
+        path: '/app',
         component: () => import('../components/layout/MainLayout.vue'),
         meta: { requiresAuth: true },
         children: [
-            {
-                path: '',
-                name: 'Dashboard',
-                component: () => import('../views/DashboardView.vue')
-            },
             {
                 path: '/models/:model',
                 name: 'ModelList',
@@ -66,6 +62,15 @@ const routes = [
                 name: 'Profile',
                 component: () => import('../views/ProfileView.vue'),
                 meta: { title: 'My Profile' }
+            },
+            {
+                path: '/comparison/:model/:id',
+                name: 'ComparisonView',
+                component: () => import('../views/ComparisonView.vue'),
+                props: (route: any) => ({
+                    model: route.params.model,
+                    id: route.params.id,
+                })
             },
         ]
     },
@@ -98,8 +103,7 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.requiresAuth && !isAuthenticated.value) {
         next('/login');
     } else if (to.meta.guest && isAuthenticated.value) {
-        // If user is authenticated and tries to access guest pages, redirect to dashboard
-        next('/dashboard');
+        next(DEFAULT_AUTHENTICATED_ROUTE);
     } else {
         next();
     }

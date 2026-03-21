@@ -88,6 +88,16 @@ RECORDS = {
         },
         "noupdate": True
     },
+    "stage_refused": {
+        "model": "plm.eco.stage",
+        "values": {
+            "name": "Refused",
+            "sequence": 40,
+            "is_last_stage": False,
+            "is_refused_stage": True,
+        },
+        "noupdate": True
+    },
 
     # ── Admin User ─────────────────────────────────────────────────────────────
 

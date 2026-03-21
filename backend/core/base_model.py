@@ -871,6 +871,7 @@ class BaseModel(Base):
         """
         # Create a temporary record
         record = cls()
+        record._onchange_raw_values = {}
         if db:
             # Use _custom_env because env is a read-only property
             record._custom_env = Environment(db)
@@ -882,6 +883,9 @@ class BaseModel(Base):
                 try:
                     # Handle dictionary values for Many2one fields (extract ID)
                     field_def = field_defs.get(k)
+                    if field_def and field_def.field_type in ('one2many', 'many2many') and isinstance(v, list):
+                        record._onchange_raw_values[k] = v
+                        continue
                     if field_def and field_def.field_type == 'many2one' and isinstance(v, dict):
                         v = v.get('id')
 
@@ -1701,6 +1705,22 @@ class BaseModel(Base):
             elif field_type == "one2many":
                 relation_model_name = meta.get("relation")
                 inverse_name = meta.get("inverse_name")
+                raw_onchange_values = getattr(self, "_onchange_raw_values", {}) or {}
+
+                if field in raw_onchange_values and isinstance(raw_onchange_values[field], list):
+                    related_dicts = []
+                    for related_record in raw_onchange_values[field]:
+                        if isinstance(related_record, dict):
+                            related_dicts.append(related_record)
+                        elif hasattr(related_record, "to_dict"):
+                            related_dicts.append(related_record.to_dict(
+                                user_role=user_role,
+                                include_domain_states=include_domain_states,
+                                user_context=user_context,
+                                max_depth=max_depth - 1
+                            ))
+                    out[field] = related_dicts
+                    continue
                 
                 if relation_model_name and inverse_name and hasattr(self, field) and max_depth > 0:
                     related_records = getattr(self, field)

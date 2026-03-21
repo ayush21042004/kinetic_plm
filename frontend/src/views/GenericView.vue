@@ -176,6 +176,14 @@ const bcPush = (item: { label: string, path: string, query?: any, view?: 'list' 
     });
 };
 
+const getDefaultFilterNames = (metadata: any): string[] => {
+  const availableFilters = metadata?.search_config?.filters || [];
+  return availableFilters
+    .filter((filter: any) => filter?.default)
+    .map((filter: any) => filter.name)
+    .filter(Boolean);
+};
+
 const handleBreadcrumbClick = (bc: any, index: number) => {
   
   trimToIndex(index);
@@ -216,7 +224,7 @@ const refreshList = async (params: {
           ...cleanQuery,
           search: currentSearch.value || undefined,
           searchField: currentSearchField.value || undefined,
-          filters: currentFilters.value.length > 0 ? JSON.stringify(currentFilters.value) : undefined,
+          filters: params.filters !== undefined ? JSON.stringify(currentFilters.value) : cleanQuery.filters,
           groupBy: currentGroupBy.value || undefined,
           offset: currentOffset.value || undefined
         }
@@ -275,6 +283,8 @@ const init = async () => {
   }
 
   try {
+    const hasFiltersInUrl = route.query.filters !== undefined;
+
     // Read state: Prioritize breadcrumb domain over URL (which we are cleaning up anyway)
     currentSearch.value = (route.query.search as string) || '';
     currentSearchField.value = (route.query.searchField as string) || '';
@@ -339,11 +349,16 @@ const init = async () => {
           currentIndex.value = 0;
       } else {
           viewMode.value = 'form';
-          await fetchFormMeta();
+          await Promise.all([
+            fetchFormMeta(),
+            fetchListMeta(),
+          ]);
+          if (!hasFiltersInUrl && currentFilters.value.length === 0) {
+            currentFilters.value = getDefaultFilterNames(listMetadata.value);
+          }
           // Fetch record and list in parallel for speed
           await Promise.all([
             fetchRecord(parseInt(props.initialId)),
-            fetchListMeta(),
             refreshList()
           ]);
           
@@ -406,6 +421,9 @@ const init = async () => {
       const currentDomainParsed = currentDomain.value ? JSON.parse(currentDomain.value) : [];
       
       await fetchListMeta();
+      if (!hasFiltersInUrl && currentFilters.value.length === 0) {
+        currentFilters.value = getDefaultFilterNames(listMetadata.value);
+      }
       const listLabel = listMetadata.value?.description || props.title;
       
       // Build query object with current filters, search, and groupBy
@@ -747,6 +765,14 @@ const processServerAction = async (action: any) => {
                 type: 'ir.actions.client', 
                 tag: 'display_notification', 
                 params: action.params.notification 
+            });
+        }
+    } else if (action.tag === 'open_comparison_view') {
+        const targetModel = action.params?.model;
+        const targetId = action.params?.record_id;
+        if (targetModel && targetId) {
+            router.push({
+                path: `/comparison/${targetModel}/${targetId}`,
             });
         }
     }

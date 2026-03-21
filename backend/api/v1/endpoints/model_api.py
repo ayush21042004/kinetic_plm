@@ -992,6 +992,35 @@ def call_model_method(
         # Don't convert to HTTPException here - let UserError, ValidationError, etc. be handled properly
         raise e
 
+@router.get("/{model_name}/{id}/comparison")
+def get_record_comparison(
+    model_name: str,
+    id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    model_cls = registry.get_model(model_name)
+    if not model_cls:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    env = Environment(db, user_id=current_user.id)
+    record = env[model_name].browse(id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    if not policy_engine.can_access_record(current_user, model_name, "read", record, context=None):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    method = getattr(record, "get_comparison_payload", None)
+    if not method or not callable(method):
+        raise HTTPException(status_code=400, detail=f"Comparison is not supported for {model_name}")
+
+    try:
+        return method()
+    except Exception as e:
+        db.rollback()
+        raise e
+
 # ====================================
 # Wizard (TransientModel) Endpoints
 # ====================================

@@ -21,7 +21,8 @@ class Product(ZnovaModel):
     version_ids = fields.One2many(
         "product.version", "product_id",
         label="Versions",
-        columns=["version", "name", "default_code", "state", "sale_price"]
+        columns=["version", "name", "default_code", "state", "sale_price"],
+        show_label=False,
     )
 
     _role_permissions = {

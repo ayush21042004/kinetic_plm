@@ -14,12 +14,19 @@ class EcoStage(ZnovaModel):
     sequence = fields.Integer(label="Sequence", default=10, tracking=True)
     is_last_stage = fields.Boolean(label="Last Stage", default=False, tracking=True,
                                    help="Only one stage can be marked as the last stage. ECOs in this stage will not show the 'Send for Approval' button.")
+    is_refused_stage = fields.Boolean(
+        label="Refused Stage",
+        default=False,
+        tracking=True,
+        help="Only one stage can be marked as the refused stage. ECOs move here when an approver refuses them."
+    )
 
     # Approval lines for this stage
     approval_line_ids = fields.One2many(
         "plm.eco.stage.line", "stage_id",
         label="Approval Rules",
         columns=["user_id", "approval_required"],
+        show_label=False,
     )
 
     _role_permissions = {
@@ -30,25 +37,31 @@ class EcoStage(ZnovaModel):
     }
 
     @classmethod
-    def _ensure_single_last_stage(cls, db: Session, is_last: bool, exclude_id=None):
-        """Raise if trying to set is_last_stage=True when another stage already has it."""
-        if not is_last:
+    def _ensure_single_flag_stage(cls, db: Session, field_name: str, enabled: bool, exclude_id=None):
+        """Raise if trying to enable a unique stage flag when another stage already has it."""
+        if not enabled:
             return
         from backend.core.base_model import Environment
         env = Environment(db)
-        domain = [("is_last_stage", "=", True)]
+        domain = [(field_name, "=", True)]
         existing = env["plm.eco.stage"].search(domain, limit=1)
         if existing:
             stage = existing[0]
             if exclude_id is None or stage.id != exclude_id:
+                field_labels = {
+                    "is_last_stage": "last stage",
+                    "is_refused_stage": "refused stage",
+                }
+                label = field_labels.get(field_name, field_name)
                 raise ValidationError(
-                    f"Stage '{stage.name}' is already marked as the last stage. "
-                    "Only one stage can be the last stage."
+                    f"Stage '{stage.name}' is already marked as the {label}. "
+                    f"Only one stage can be the {label}."
                 )
 
     @classmethod
     def create(cls, db: Session, vals: dict):
-        cls._ensure_single_last_stage(db, vals.get("is_last_stage", False))
+        cls._ensure_single_flag_stage(db, "is_last_stage", vals.get("is_last_stage", False))
+        cls._ensure_single_flag_stage(db, "is_refused_stage", vals.get("is_refused_stage", False))
         return super().create(db, vals)
 
     def write(self, *args, **kwargs):
@@ -58,28 +71,25 @@ class EcoStage(ZnovaModel):
             from sqlalchemy.orm import object_session
             db = object_session(self)
         if db and vals.get("is_last_stage", False):
-            self.__class__._ensure_single_last_stage(db, True, exclude_id=self.id)
+            self.__class__._ensure_single_flag_stage(db, "is_last_stage", True, exclude_id=self.id)
+        if db and vals.get("is_refused_stage", False):
+            self.__class__._ensure_single_flag_stage(db, "is_refused_stage", True, exclude_id=self.id)
         return super().write(*args, **kwargs)
 
     _ui_views = {
         "list": {
-            "fields": ["name", "sequence", "is_last_stage"],
+            "fields": ["name", "sequence", "is_last_stage", "is_refused_stage"],
             "search_fields": ["name"]
         },
         "form": {
             "groups": [
                 {"title": "Stage Name", "fields": ["name"], "position": "header"},
-                {"title": "Settings", "fields": ["sequence", "is_last_stage"]},
+                {"title": "Settings", "fields": ["sequence", "is_last_stage", "is_refused_stage"]},
             ],
             "tabs": [
                 {
                     "title": "Approval Rules",
-                    "groups": [
-                        {
-                            "title": "Approvers",
-                            "fields": ["approval_line_ids"]
-                        }
-                    ]
+                    "fields": ["approval_line_ids"]
                 }
             ]
         }

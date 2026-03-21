@@ -349,20 +349,6 @@ watch(() => props.groupBy, (newVal) => {
   }
 }, { immediate: true });
 
-const defaultsApplied = ref(false);
-
-watch(() => availableFilters.value, (newFilters) => {
-  if (!defaultsApplied.value && newFilters.length > 0) {
-    const defaultFilters = newFilters.filter(f => f.default);
-    if (defaultFilters.length > 0) {
-      activeFilters.value = defaultFilters;
-      emitFilters();
-    }
-    defaultsApplied.value = true;
-  }
-}, { immediate: true });
-
-// Initialize default filters
 onMounted(() => {
   document.addEventListener('click', handleOutsideClick);
 });

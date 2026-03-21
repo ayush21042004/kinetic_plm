@@ -5,11 +5,6 @@ if TYPE_CHECKING:
 def initialize_menus(menu_manager: 'MenuManager'):
     from backend.core.menu_manager import MenuItem
 
-    # ── Main ──────────────────────────────────────────────────────────────────
-    menu_manager.add_item("Main", MenuItem(
-        "dashboard", "Dashboard", "/dashboard", "LayoutDashboard", sequence=10
-    ))
-
     # ── ECO ───────────────────────────────────────────────────────────────────
     eco_group = "ECO"
     menu_manager.add_item(eco_group, MenuItem(
@@ -34,6 +29,12 @@ def initialize_menus(menu_manager: 'MenuManager'):
                 "bom_list", "Bill of Materials",
                 "/models/mrp.bom",
                 "List", sequence=20,
+                groups=["admin", "engineering", "approver", "operations"]
+            ),
+            MenuItem(
+                "work_centers", "Work Centers",
+                "/models/work.center",
+                "Factory", sequence=30,
                 groups=["admin", "engineering", "approver", "operations"]
             ),
         ]

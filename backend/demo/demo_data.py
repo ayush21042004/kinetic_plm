@@ -186,13 +186,73 @@ RECORDS = {
             "cost_price": 58000,
         }
     },
+    "demo_product_gripper": {
+        "model": "product.product",
+        "values": {
+            "name": "Adaptive Gripper Head",
+            "active": True,
+        }
+    },
+    "demo_product_power": {
+        "model": "product.product",
+        "values": {
+            "name": "Auxiliary Power Module",
+            "active": True,
+        }
+    },
+    "demo_product_vision": {
+        "model": "product.product",
+        "values": {
+            "name": "Vision Alignment Camera",
+            "active": True,
+        }
+    },
+    "demo_version_gripper_v1": {
+        "model": "product.version",
+        "values": {
+            "product_id": "@demo_product_gripper",
+            "version": 1,
+            "name": "Adaptive Gripper Head",
+            "default_code": "AGH-001",
+            "description": "Initial release of the adaptive gripper assembly.",
+            "state": "active",
+            "sale_price": 18500,
+            "cost_price": 12600,
+        }
+    },
+    "demo_version_power_v1": {
+        "model": "product.version",
+        "values": {
+            "product_id": "@demo_product_power",
+            "version": 1,
+            "name": "Auxiliary Power Module",
+            "default_code": "APM-001",
+            "description": "24V regulated auxiliary power distribution module.",
+            "state": "active",
+            "sale_price": 2400,
+            "cost_price": 1650,
+        }
+    },
+    "demo_version_vision_v1": {
+        "model": "product.version",
+        "values": {
+            "product_id": "@demo_product_vision",
+            "version": 1,
+            "name": "Vision Alignment Camera",
+            "default_code": "VAC-001",
+            "description": "Compact alignment camera for guided assembly stations.",
+            "state": "active",
+            "sale_price": 3200,
+            "cost_price": 2100,
+        }
+    },
 
     # ── Demo: BOMs ─────────────────────────────────────────────────────────────
     # BOM for Main Controller Board — uses motor driver + sensor + wiring harness
     "demo_bom_controller": {
         "model": "mrp.bom",
         "values": {
-            "name": "BOM-MCB-001",
+            "name": "New",
             "product_version_id": "@demo_version_controller_v1",
             "version": 1,
             "state": "active",
@@ -203,7 +263,7 @@ RECORDS = {
     "demo_bom_motor": {
         "model": "mrp.bom",
         "values": {
-            "name": "BOM-SM24-001",
+            "name": "New",
             "product_version_id": "@demo_version_motor_v1",
             "version": 1,
             "state": "active",
@@ -214,11 +274,67 @@ RECORDS = {
     "demo_bom_arm": {
         "model": "mrp.bom",
         "values": {
-            "name": "BOM-RAU-001",
+            "name": "New",
             "product_version_id": "@demo_version_arm_v1",
             "version": 1,
             "state": "active",
             "notes": "Top-level BOM for Robotic Arm Unit v1.",
+        }
+    },
+    "demo_bom_gripper": {
+        "model": "mrp.bom",
+        "values": {
+            "product_version_id": "@demo_version_gripper_v1",
+            "version": 1,
+            "state": "active",
+            "notes": "Adaptive gripper BOM with power distribution, camera alignment and harnessing.",
+        }
+    },
+
+    # ── Demo: Work Center + Routing Operation ─────────────────────────────────
+    "demo_work_center_electronics": {
+        "model": "work.center",
+        "values": {
+            "name": "Electronics Assembly Cell",
+        }
+    },
+    "demo_work_center_mechanical": {
+        "model": "work.center",
+        "values": {
+            "name": "Mechanical Integration Bay",
+        }
+    },
+    "demo_work_center_final": {
+        "model": "work.center",
+        "values": {
+            "name": "Final Calibration Station",
+        }
+    },
+    "demo_routing_workcenter_controller_assembly": {
+        "model": "mrp.routing.workcenter",
+        "values": {
+            "bom_id": "@demo_bom_controller",
+            "operation": "Controller Board Assembly",
+            "work_center_id": "@demo_work_center_electronics",
+            "duration_minutes": 45,
+        }
+    },
+    "demo_routing_workcenter_arm_final_test": {
+        "model": "mrp.routing.workcenter",
+        "values": {
+            "bom_id": "@demo_bom_arm",
+            "operation": "Arm Final Integration Test",
+            "work_center_id": "@demo_work_center_final",
+            "duration_minutes": 70,
+        }
+    },
+    "demo_routing_workcenter_gripper_assembly": {
+        "model": "mrp.routing.workcenter",
+        "values": {
+            "bom_id": "@demo_bom_gripper",
+            "operation": "Gripper Head Assembly",
+            "work_center_id": "@demo_work_center_mechanical",
+            "duration_minutes": 35,
         }
     },
 
@@ -307,6 +423,105 @@ RECORDS = {
             "component_product_id": "@demo_version_cable_v1",
             "quantity": 2,
             "notes": "External wiring harnesses",
+        }
+    },
+
+    # Lines for Adaptive Gripper Head BOM
+    "demo_bom_line_gripper_sensor": {
+        "model": "mrp.bom.line",
+        "values": {
+            "bom_id": "@demo_bom_gripper",
+            "component_product_id": "@demo_version_sensor_v1",
+            "quantity": 2,
+            "notes": "Finger position sensing modules",
+        }
+    },
+    "demo_bom_line_gripper_power": {
+        "model": "mrp.bom.line",
+        "values": {
+            "bom_id": "@demo_bom_gripper",
+            "component_product_id": "@demo_version_power_v1",
+            "quantity": 1,
+            "notes": "Auxiliary power regulation board",
+        }
+    },
+    "demo_bom_line_gripper_vision": {
+        "model": "mrp.bom.line",
+        "values": {
+            "bom_id": "@demo_bom_gripper",
+            "component_product_id": "@demo_version_vision_v1",
+            "quantity": 1,
+            "notes": "Alignment camera for precision pickup",
+        }
+    },
+    "demo_bom_line_gripper_cable": {
+        "model": "mrp.bom.line",
+        "values": {
+            "bom_id": "@demo_bom_gripper",
+            "component_product_id": "@demo_version_cable_v1",
+            "quantity": 1,
+            "notes": "Control and power harness",
+        }
+    },
+
+    # ── Demo: ECOs ────────────────────────────────────────────────────────────
+    # Names are intentionally omitted so plm.eco.create() generates sequence values.
+    "demo_eco_controller_refresh": {
+        "model": "plm.eco",
+        "values": {
+            "type": "product",
+            "product_id": "@demo_product_controller",
+            "initiated_by_id": "@demo_user_engineering",
+            "description": "Refresh the main controller board for higher current tolerance and improved connector routing.",
+            "update_version": True,
+            "eco_name": "Main Controller Board Rev A",
+            "eco_default_code": "MCB-002",
+            "eco_sale_price": 12800,
+            "eco_cost_price": 9100,
+            "eco_change_notes": "Upgrade copper weight, add keyed service connector, and reserve header space for firmware diagnostics."
+        }
+    },
+    "demo_eco_arm_bom_upgrade": {
+        "model": "plm.eco",
+        "values": {
+            "type": "bom",
+            "bom_id": "@demo_bom_arm",
+            "initiated_by_id": "@demo_user_engineering",
+            "description": "Improve the robotic arm BOM with redundant sensing, auxiliary power distribution, and a dedicated calibration step.",
+            "update_version": True,
+            "eco_line_ids": {
+                "create": [
+                    {
+                        "component_product_id": "@demo_version_sensor_v1",
+                        "quantity": 6,
+                        "notes": "Redundant position sensing for paired arm joints."
+                    },
+                    {
+                        "component_product_id": "@demo_version_power_v1",
+                        "quantity": 1,
+                        "notes": "Dedicated auxiliary power distribution module."
+                    },
+                    {
+                        "component_product_id": "@demo_version_cable_v1",
+                        "quantity": 3,
+                        "notes": "Additional harness capacity for calibration and diagnostics."
+                    }
+                ]
+            },
+            "eco_workorder_ids": {
+                "create": [
+                    {
+                        "operation": "Harness Integrity Validation",
+                        "work_center_id": "@demo_work_center_electronics",
+                        "duration_minutes": 25
+                    },
+                    {
+                        "operation": "Precision Joint Calibration",
+                        "work_center_id": "@demo_work_center_final",
+                        "duration_minutes": 60
+                    }
+                ]
+            }
         }
     },
 }
