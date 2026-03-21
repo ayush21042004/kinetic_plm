@@ -59,6 +59,33 @@ RECORDS = {
         "noupdate": True
     },
 
+    # ── ECO Stages ─────────────────────────────────────────────────────────────
+
+    "stage_new": {
+        "model": "plm.eco.stage",
+        "values": {
+            "name": "New",
+            "sequence": 10,
+        },
+        "noupdate": True
+    },
+    "stage_approval": {
+        "model": "plm.eco.stage",
+        "values": {
+            "name": "Approval",
+            "sequence": 20,
+        },
+        "noupdate": True
+    },
+    "stage_done": {
+        "model": "plm.eco.stage",
+        "values": {
+            "name": "Done",
+            "sequence": 30,
+        },
+        "noupdate": True
+    },
+
     # ── Admin User ─────────────────────────────────────────────────────────────
 
     "user_admin": {

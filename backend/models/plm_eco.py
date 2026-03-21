@@ -8,6 +8,7 @@ class Eco(ZnovaModel):
     _model_name_ = "plm.eco"
     _name_field_ = "name"
     _description_ = "Engineering Change Order"
+    _status_field_ = "stage_id"
 
     _sequence_field = "name"
     _sequence_code = "plm.eco"
@@ -23,17 +24,10 @@ class Eco(ZnovaModel):
         "bom":     {"label": "BoM",     "color": "info"},
     })
 
-    state = fields.Selection([
-        ("draft",     "Draft"),
-        ("in_review", "In Review"),
-        ("approved",  "Approved"),
-        ("done",      "Done"),
-    ], label="State", default="draft", tracking=True, options={
-        "draft":     {"label": "Draft",     "color": "secondary"},
-        "in_review": {"label": "In Review", "color": "warning"},
-        "approved":  {"label": "Approved",  "color": "success"},
-        "done":      {"label": "Done",      "color": "primary"},
-    })
+    stage_id = fields.Many2one(
+        "plm.eco.stage", label="Stage", tracking=True,
+        help="Current stage of this ECO in the approval workflow."
+    )
 
     description = fields.Text(label="Description", tracking=True)
     update_version = fields.Boolean(label="Update Version", default=True, tracking=True)
@@ -86,24 +80,20 @@ class Eco(ZnovaModel):
 
     _search_config = {
         "filters": [
-            {"name": "draft",       "label": "Draft",        "domain": "[('state', '=', 'draft')]"},
-            {"name": "in_review",   "label": "In Review",    "domain": "[('state', '=', 'in_review')]"},
-            {"name": "approved",    "label": "Approved",     "domain": "[('state', '=', 'approved')]"},
-            {"name": "done",        "label": "Done",         "domain": "[('state', '=', 'done')]"},
             {"name": "product_eco", "label": "Product ECOs", "domain": "[('type', '=', 'product')]"},
             {"name": "bom_eco",     "label": "BoM ECOs",     "domain": "[('type', '=', 'bom')]"},
         ],
         "group_by": [
             {"name": "by_type",  "label": "By Type",      "field": "type"},
-            {"name": "by_state", "label": "By State",     "field": "state"},
+            {"name": "by_stage", "label": "By Stage",     "field": "stage_id"},
             {"name": "by_user",  "label": "By Initiator", "field": "initiated_by_id"},
         ]
     }
 
     _ui_views = {
         "list": {
-            "fields": ["name", "type", "state", "product_id", "bom_id", "initiated_by_id"],
-            "search_fields": ["name", "type", "state"]
+            "fields": ["name", "type", "stage_id", "product_id", "bom_id", "initiated_by_id"],
+            "search_fields": ["name", "type", "stage_id"]
         },
         "form": {
             "show_audit_log": True,
@@ -146,6 +136,26 @@ class Eco(ZnovaModel):
             ]
         }
     }
+
+    @classmethod
+    def default_get(cls, fields_list):
+        res = super().default_get(fields_list)
+        if 'stage_id' in fields_list and not res.get('stage_id'):
+            try:
+                from backend.core.base_model import Environment
+                from backend.core.database import SessionLocal
+                db = SessionLocal()
+                try:
+                    env = Environment(db)
+                    stage = env['plm.eco.stage'].search([], order='sequence', limit=1)
+                    if stage:
+                        res['stage_id'] = stage[0].id
+                finally:
+                    db.close()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Could not set default stage_id: {e}")
+        return res
 
     @api.onchange("product_id")
     def _onchange_product_id(self):

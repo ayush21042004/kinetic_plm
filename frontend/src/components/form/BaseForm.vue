@@ -174,7 +174,7 @@
             <StatusBar 
               v-if="getStatusOptions().length"
               :stages="getStatusOptions()" 
-              :currentValue="formData[getStatusField()]"
+              :currentValue="formData[getStatusField()] && typeof formData[getStatusField()] === 'object' ? formData[getStatusField()].id : formData[getStatusField()]"
               :readonly="isFieldReadonly(getStatusField()) || actionPermissions.makeFieldsReadonly"
               @change="handleStatusChange"
             />
@@ -1770,9 +1770,19 @@ const isTabInvalid = (tab: any) => {
 };
 
 const getStatusOptions = () => {
-    const field = allFields.value[getStatusField()];
+    const statusField = getStatusField();
+    const field = allFields.value[statusField];
     if (!field) return [];
-    
+
+    // Many2one status field (e.g. stage_id) — read from loaded relations
+    if (field.type === 'many2one') {
+        const rel = relations[statusField] || relations[field.relation] || [];
+        return rel.map((r: any) => ({
+            val: r.id,
+            label: r.display_name || r.name || `#${r.id}`
+        }));
+    }
+
     // Handle both array and object formats for selection options
     if (Array.isArray(field.selection)) {
         return field.selection.map(([val, label]: any) => ({ val, label }));

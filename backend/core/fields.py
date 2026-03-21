@@ -260,13 +260,13 @@ class Many2one(BaseField):
         model_cls = registry.get_model(comodel_name)
         if model_cls:
             return model_cls.__name__
-        
-        # Fallback to mapping for common models - CLEANED UP
         class_mapping = {
             "user": "User",
             "role": "Role",
             "mrp.bom.line": "Line",
             "plm.eco.line": "EcoLine",
+            "plm.eco.stage": "EcoStage",
+            "plm.eco.stage.line": "EcoStageLine",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]
@@ -338,6 +338,8 @@ class One2many(BaseField):
             "role": "Role",
             "mrp.bom.line": "Line",
             "plm.eco.line": "EcoLine",
+            "plm.eco.stage": "EcoStage",
+            "plm.eco.stage.line": "EcoStageLine",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]
@@ -454,7 +456,6 @@ class Many2many(BaseField):
         if model_cls and hasattr(model_cls, '__tablename__'):
             return model_cls.__tablename__
         
-        # Fallback to mapping for common models - CLEANED UP
         table_mapping = {
             "user": "users",
         }
@@ -478,6 +479,8 @@ class Many2many(BaseField):
             "role": "Role",
             "mrp.bom.line": "Line",
             "plm.eco.line": "EcoLine",
+            "plm.eco.stage": "EcoStage",
+            "plm.eco.stage.line": "EcoStageLine",
         }
         if comodel_name in class_mapping:
             return class_mapping[comodel_name]

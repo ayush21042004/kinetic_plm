@@ -40,7 +40,7 @@
               <router-link 
                 v-if="!item.children"
                 :to="item.path" 
-                :class="{ active: item.path === '/' ? $route.path === '/' : $route.path.startsWith(item.path) }"
+                :class="{ active: item.path === '/' ? $route.path === '/' : ($route.path === item.path || $route.path.startsWith(item.path + '/')) }"
                 @click="handleSidebarClick(item.path)"
               >
                 <component :is="item.icon" class="icon" />
@@ -56,7 +56,7 @@
                   @mouseleave="onParentMouseLeave"
                   :class="{ 
                     'expanded': expandedItems.includes(item.name),
-                    'active': item.children && item.children.some((child: MenuItem) => $route.path.startsWith(child.path))
+                    'active': item.children && item.children.some((child: MenuItem) => $route.path === child.path || $route.path.startsWith(child.path + '/'))
                   }"
                 >
                   <component :is="item.icon" class="icon" />
@@ -73,7 +73,7 @@
                     :key="child.name"
                     :to="child.path"
                     class="child-item"
-                    :class="{ active: $route.path.startsWith(child.path) }"
+                    :class="{ active: $route.path === child.path || $route.path.startsWith(child.path + '/') }"
                     @click="handleSidebarClick(child.path)"
                   >
                     <span class="child-label">{{ child.label }}</span>
@@ -174,7 +174,7 @@
           :key="child.name"
           :to="child.path"
           class="floating-item"
-          :class="{ active: $route.path.startsWith(child.path) }"
+          :class="{ active: $route.path === child.path || $route.path.startsWith(child.path + '/') }"
           @click="handleSidebarClick(child.path)"
         >
           {{ child.label }}

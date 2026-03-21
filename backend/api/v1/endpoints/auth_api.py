@@ -149,10 +149,10 @@ def signup(request: SignupRequest, client_request: Request, db: Session = Depend
             detail="An account with this email address already exists"
         )
     
-    # Get or create user role
-    user_role = env['role'].search([('name', '=', 'user')], limit=1)
+    # Get operations role for new signups
+    user_role = env['role'].search([('name', '=', 'operations')], limit=1)
     if not user_role:
-        user_role = Role(name="user", description="Normal User")
+        user_role = Role(name="operations", description="Operations User")
         db.add(user_role)
         db.flush()
 
@@ -435,9 +435,11 @@ def google_auth_callback(request: GoogleAuthRequest, client_request: Request, db
         
         if not user:
             # Create new user
-            user_role = env['role'].search([('name', '=', 'user')], limit=1)
+            user_role = env['role'].search([('name', '=', 'operations')], limit=1)
             if not user_role:
-                user_role = env['role'].create({'name': 'user', 'description': 'Normal User'})
+                user_role = env['role'].search([('name', '=', 'user')], limit=1)
+            if not user_role:
+                user_role = env['role'].create({'name': 'operations', 'description': 'Operations User'})
             
             # Generate a random password for Google users (they won't use it)
             random_password = secrets.token_urlsafe(32)

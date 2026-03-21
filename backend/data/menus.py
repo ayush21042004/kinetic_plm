@@ -50,6 +50,10 @@ def initialize_menus(menu_manager: 'MenuManager'):
                 "Users", sequence=10, groups=["admin"]
             ),
             MenuItem(
+                "eco_stages", "ECO Stages", "/models/plm.eco.stage",
+                "Milestone", sequence=20, groups=["admin"]
+            ),
+            MenuItem(
                 "sequences", "Sequences", "/models/sequence",
                 "LayoutGrid", sequence=30, groups=["admin"]
             ),
