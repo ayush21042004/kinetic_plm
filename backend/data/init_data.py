@@ -65,7 +65,8 @@ RECORDS = {
         "model": "plm.eco.stage",
         "values": {
             "name": "New",
-            "sequence": 10,
+            "sequence": 1,
+            "is_last_stage": False,
         },
         "noupdate": True
     },
@@ -74,6 +75,7 @@ RECORDS = {
         "values": {
             "name": "Approval",
             "sequence": 20,
+            "is_last_stage": False,
         },
         "noupdate": True
     },
@@ -82,6 +84,7 @@ RECORDS = {
         "values": {
             "name": "Done",
             "sequence": 30,
+            "is_last_stage": True,
         },
         "noupdate": True
     },

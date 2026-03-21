@@ -33,7 +33,7 @@ class Bom(ZnovaModel):
     })
 
     notes = fields.Text(label="Notes", readonly="[('state', 'in', ['active', 'archived'])]")
-    eco_id = fields.Many2one("plm.eco", label="Source ECO", readonly=True)
+    eco_id = fields.Many2one("plm.eco", label="Source ECO", readonly=True, use_alter=True)
 
     bom_line_ids = fields.One2many(
         "mrp.bom.line", "bom_id",

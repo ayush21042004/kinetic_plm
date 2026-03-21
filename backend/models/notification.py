@@ -77,12 +77,26 @@ class Notification(ZnovaModel):
             "delete": True,
             "domain": []  # Can manage all notifications
         },
-        "user": {
+        "engineering": {
             "create": False,
             "read": True,
-            "write": True,  # Can mark as read
+            "write": True,
             "delete": False,
-            "domain": [("user_id", "=", "user.id")]  # Only their own notifications
+            "domain": [("user_id", "=", "user.id")]
+        },
+        "approver": {
+            "create": False,
+            "read": True,
+            "write": True,
+            "delete": False,
+            "domain": [("user_id", "=", "user.id")]
+        },
+        "operations": {
+            "create": False,
+            "read": True,
+            "write": True,
+            "delete": False,
+            "domain": [("user_id", "=", "user.id")]
         }
     }
     

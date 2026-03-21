@@ -193,10 +193,11 @@ class Many2one(BaseField):
     """Many-to-one relationship field"""
     field_type = "many2one"
     
-    def __init__(self, comodel_name: str, ondelete: str = "set null", **kwargs):
+    def __init__(self, comodel_name: str, ondelete: str = "set null", use_alter: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.comodel_name = comodel_name
         self.ondelete = ondelete
+        self.use_alter = use_alter
     
     def get_column(self, field_name: str) -> Column:
         if not self.store:
@@ -205,8 +206,12 @@ class Many2one(BaseField):
         # If required is a domain string (conditional), the column must be nullable
         is_always_required = self.required is True
         table_name = self._get_table_name(self.comodel_name)
-        return Column(SQLInteger, ForeignKey(f"{table_name}.id", ondelete=self.ondelete), 
-                     nullable=not is_always_required)
+        fk_name = f"fk_{field_name}_{table_name}" if self.use_alter else None
+        return Column(
+            SQLInteger,
+            ForeignKey(f"{table_name}.id", ondelete=self.ondelete, use_alter=self.use_alter, name=fk_name),
+            nullable=not is_always_required
+        )
     
     def get_relationship(self, field_name: str, model_class_name: str = None, model_tablename: str = None):
         # Generate relationship using the field name without _id suffix as the relationship name

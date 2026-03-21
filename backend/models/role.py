@@ -60,13 +60,6 @@ class Role(ZnovaModel):
             "write": False,
             "delete": False,
             "domain": []
-        },
-        "user": {
-            "create": False,
-            "read": True,
-            "write": False,
-            "delete": False,
-            "domain": []
         }
     }
 

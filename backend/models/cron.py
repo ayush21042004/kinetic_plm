@@ -42,7 +42,21 @@ class Cron(ZnovaModel):
             "delete": True,
             "domain": []
         },
-        "user": {
+        "engineering": {
+            "create": False,
+            "read": False,
+            "write": False,
+            "delete": False,
+            "domain": []
+        },
+        "approver": {
+            "create": False,
+            "read": False,
+            "write": False,
+            "delete": False,
+            "domain": []
+        },
+        "operations": {
             "create": False,
             "read": False,
             "write": False,

@@ -1009,8 +1009,9 @@ class BaseModel(Base):
                     raise UserError(f"The {cls._ui_metadata.get(col.name, {}).get('label', col.name)} '{data[col.name]}' already exists.")
 
         try:
-            # Create the main record first
-            record = cls(**data)
+            # Create the main record first — only pass keys that are actual table columns
+            column_names = {col.name for col in cls.__table__.columns}
+            record = cls(**{k: v for k, v in data.items() if k in column_names})
             
             db.add(record)
             db.flush()  # Flush to get the ID and load relationships

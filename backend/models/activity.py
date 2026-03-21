@@ -25,11 +25,25 @@ class ActivityLog(ZnovaModel):
             "delete": True,
             "domain": []
         },
-        "user": {
+        "engineering": {
             "create": False,
             "read": True,
             "write": False,
             "delete": False,
-            "domain": [("performed_by_id", "=", "user.id")]  # Only own activity
+            "domain": [("performed_by_id", "=", "user.id")]
+        },
+        "approver": {
+            "create": False,
+            "read": True,
+            "write": False,
+            "delete": False,
+            "domain": [("performed_by_id", "=", "user.id")]
+        },
+        "operations": {
+            "create": False,
+            "read": True,
+            "write": False,
+            "delete": False,
+            "domain": [("performed_by_id", "=", "user.id")]
         }
     }

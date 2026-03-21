@@ -46,12 +46,12 @@ def initialize_menus(menu_manager: 'MenuManager'):
         groups=["admin"],
         children=[
             MenuItem(
-                "users", "Users", "/models/user",
-                "Users", sequence=10, groups=["admin"]
-            ),
-            MenuItem(
                 "eco_stages", "ECO Stages", "/models/plm.eco.stage",
                 "Milestone", sequence=20, groups=["admin"]
+            ),
+            MenuItem(
+                "users", "Users", "/models/user",
+                "Users", sequence=10, groups=["admin"]
             ),
             MenuItem(
                 "sequences", "Sequences", "/models/sequence",

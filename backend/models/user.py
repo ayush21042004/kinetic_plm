@@ -73,13 +73,6 @@ class User(ZnovaModel):
             "write": True,
             "delete": False,
             "domain": [("id", "=", "user.id")]  # Own record only
-        },
-        "user": {
-            "create": False,
-            "read": True,
-            "write": True,
-            "delete": False,
-            "domain": [("id", "=", "user.id")]
         }
     }
 

@@ -25,7 +25,7 @@ class Eco(ZnovaModel):
     })
 
     stage_id = fields.Many2one(
-        "plm.eco.stage", label="Stage", tracking=True,
+        "plm.eco.stage", label="Stage", tracking=True, readonly=True,
         help="Current stage of this ECO in the approval workflow."
     )
 
@@ -108,6 +108,15 @@ class Eco(ZnovaModel):
                     "fields": ["update_version", "description"]
                 }
             ],
+            "header_buttons": [
+                {
+                    "name": "move_to_next_stage",
+                    "label": "Move to Next stage",
+                    "type": "primary",
+                    "method": "action_move_to_next_stage",
+                    "invisible": "[('stage_is_last', '=', True)]"
+                }
+            ],
             "tabs": [
                 {
                     "title": "Product Change",
@@ -136,6 +145,61 @@ class Eco(ZnovaModel):
             ]
         }
     }
+
+    def to_dict(self, **kwargs):
+        data = super().to_dict(**kwargs)
+        # Inject flat boolean so the frontend domain [('stage_is_last', '=', True)] works
+        stage = self.stage_id
+        if stage and hasattr(stage, 'is_last_stage'):
+            data['stage_is_last'] = bool(stage.is_last_stage)
+        else:
+            data['stage_is_last'] = False
+        return data
+
+    def action_move_to_next_stage(self):
+        """Move this ECO to the next stage ordered by sequence."""
+        from sqlalchemy.orm import object_session
+        from backend.core.base_model import Environment
+        db = object_session(self)
+        if not db:
+            return {"type": "error", "message": "No database session"}
+
+        current_stage = self.stage_id
+        if not current_stage:
+            return {"type": "error", "message": "No current stage set"}
+
+        current_seq = current_stage.sequence if hasattr(current_stage, "sequence") else 0
+
+        env = Environment(db)
+        # Find the next stage: lowest sequence that is greater than current
+        all_stages = env["plm.eco.stage"].search(
+            [("sequence", ">", current_seq)], order="sequence", limit=1
+        )
+        if not all_stages:
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "Already at Last Stage",
+                    "message": "There is no next stage to move to.",
+                    "type": "warning",
+                }
+            }
+
+        next_stage = all_stages[0]
+        self.write(db, {"stage_id": next_stage.id})
+        db.commit()
+
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Stage Updated",
+                "message": f"ECO moved to stage: {next_stage.name}",
+                "type": "success",
+                "refresh": True,
+            }
+        }
 
     @classmethod
     def default_get(cls, fields_list):
