@@ -108,10 +108,15 @@
           />
         </div>
         <div class="header-right">
-          <!-- Search Box (Placeholder) -->
-          <div class="search-box">
+          <!-- Search Box (Functional) -->
+          <div class="search-box" @click="showUniversalSearch = true">
             <Search class="search-icon" />
-            <input type="text" placeholder="Search..." disabled />
+            <input 
+              type="text" 
+              placeholder="Search... (Ctrl+K)" 
+              readonly 
+              style="cursor: pointer"
+            />
           </div>
           
           <!-- Notification Bell Wrapper for Button consistency -->
@@ -181,6 +186,12 @@
         </router-link>
       </div>
     </Teleport>
+
+    <!-- Universal Search Modal -->
+    <UniversalSearch 
+      :show="showUniversalSearch" 
+      @close="showUniversalSearch = false" 
+    />
     
     <!-- Profile Dropdown for Mobile (Teleported) -->
     <Teleport to="body">
@@ -256,6 +267,7 @@ import NotificationContainer from '../common/NotificationContainer.vue';
 import NotificationBell from '../common/NotificationBell.vue';
 import Breadcrumbs from '../common/Breadcrumbs.vue';
 import ErrorDialog from '../common/ErrorDialog.vue';
+import UniversalSearch from '../common/UniversalSearch.vue';
 import { useUserStore } from '../../stores/userStore';
 import { useBreadcrumbs } from '../../composables/useBreadcrumbs';
 import { useErrorHandler } from '../../composables/useErrorHandler';
@@ -312,6 +324,7 @@ const { errorDialogState, closeErrorDialog, retryAction, reportError } = useErro
 const isMobile = ref(false);
 const isMobileMenuOpen = ref(false);
 const showProfileDropdown = ref(false);
+const showUniversalSearch = ref(false);
 const profileMenuRef = ref<HTMLElement | null>(null);
 const mobileProfileRef = ref<HTMLElement | null>(null);
 
@@ -423,6 +436,16 @@ onMounted(async () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     (window as any).__profileClickOutside = handleClickOutside;
+
+    // Keyboard shortcut (Ctrl+K)
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        showUniversalSearch.value = true;
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeydown);
+    (window as any).__searchKeydownListener = handleGlobalKeydown;
 });
 
 onUnmounted(() => {
@@ -438,6 +461,11 @@ onUnmounted(() => {
     if ((window as any).__profileClickOutside) {
       document.removeEventListener('mousedown', (window as any).__profileClickOutside);
       delete (window as any).__profileClickOutside;
+    }
+    
+    if ((window as any).__searchKeydownListener) {
+      window.removeEventListener('keydown', (window as any).__searchKeydownListener);
+      delete (window as any).__searchKeydownListener;
     }
 });
 

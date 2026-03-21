@@ -46,6 +46,59 @@ router = APIRouter()
 def get_ui_menu(current_user = Depends(get_current_user)):
     return menu_manager.get_menu(user_role=current_user.role.name if current_user.role else None)
 
+@router.get("/ui/search")
+def universal_search(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Global search across multiple models"""
+    if not q or len(q) < 2:
+        return []
+
+    logger.info(f"Universal Search query: '{q}' for user {current_user.email}")
+    results = []
+    search_models = [
+        {"model": "plm.eco", "label": "Engineering Changes", "icon": "ClipboardList"},
+        {"model": "product.version", "label": "Product Versions", "icon": "Box"},
+        {"model": "mrp.bom", "label": "BOMs", "icon": "Layers"},
+        {"model": "work.center", "label": "Work Centers", "icon": "Settings"},
+    ]
+
+    for item in search_models:
+        model_name = item["model"]
+        model_cls = registry.get_model(model_name)
+        if not model_cls:
+            logger.warning(f"Model {model_name} not found in registry")
+            continue
+
+        # Apply security policies
+        query = db.query(model_cls)
+        query = policy_engine.apply_domain_filter(query, current_user, model_name)
+
+        # Search by name field
+        name_field = getattr(model_cls, "_name_field_", "name")
+        if hasattr(model_cls, name_field):
+            query = query.filter(getattr(model_cls, name_field).ilike(f"%{q}%"))
+
+        # Limit to 5 results per model for performance and UI clarity
+        records = query.limit(5).all()
+        logger.info(f"Model {model_name}: found {len(records)} results")
+        
+        for rec in records:
+            name = getattr(rec, name_field, "Unknown")
+            results.append({
+                "id": rec.id,
+                "name": name,
+                "model": model_name,
+                "category": item["label"],
+                "icon": item["icon"],
+                "path": f"/models/{model_name}/{rec.id}"
+            })
+
+    logger.info(f"Total results: {len(results)}")
+    return results
+
 @router.get("/reporting/overview")
 def get_reporting_overview(
     db: Session = Depends(get_db),
