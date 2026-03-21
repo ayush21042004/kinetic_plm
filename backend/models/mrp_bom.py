@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 class Bom(ZnovaModel):
     __tablename__ = "mrp_bom"
     _model_name_ = "mrp.bom"
-    _name_field_ = "reference"
+    _name_field_ = "name"
     _description_ = "Bill of Materials"
 
-    reference = fields.Char(label="Reference", required=True, size=100, tracking=True,
-                            help="e.g. BOM-001, BoM-v2",
-                            readonly="[('state', 'in', ['active', 'archived'])]")
+    name = fields.Char(label="Reference", required=True, size=100, tracking=True,
+                       help="e.g. BOM-001, BoM-v2",
+                       readonly="[('state', 'in', ['active', 'archived'])]")
 
     product_version_id = fields.Many2one(
         "product.version", label="Product", required=True, tracking=True,
@@ -62,8 +62,8 @@ class Bom(ZnovaModel):
 
     _ui_views = {
         "list": {
-            "fields": ["reference", "product_version_id", "version", "state"],
-            "search_fields": ["reference", "product_version_id"]
+            "fields": ["name", "product_version_id", "version", "state"],
+            "search_fields": ["name", "product_version_id"]
         },
         "form": {
             "show_audit_log": True,
@@ -101,7 +101,7 @@ class Bom(ZnovaModel):
                 }
             ],
             "groups": [
-                {"title": "Reference", "fields": ["reference"], "position": "header"},
+                {"title": "Reference", "fields": ["name"], "position": "header"},
                 {"title": "BoM Identity", "fields": ["product_version_id", "version"]},
             ],
             "tabs": [
@@ -133,7 +133,7 @@ class Bom(ZnovaModel):
             "tag": "display_notification",
             "params": {
                 "title": "BoM Activated",
-                "message": f"'{self.reference}' is now Active.",
+                "message": f"'{self.name}' is now Active.",
                 "type": "success",
                 "refresh": True
             }
@@ -146,7 +146,7 @@ class Bom(ZnovaModel):
             "tag": "display_notification",
             "params": {
                 "title": "BoM Archived",
-                "message": f"'{self.reference}' has been Archived.",
+                "message": f"'{self.name}' has been Archived.",
                 "type": "warning",
                 "refresh": True
             }
@@ -159,7 +159,7 @@ class Bom(ZnovaModel):
             "tag": "display_notification",
             "params": {
                 "title": "Reset to Draft",
-                "message": f"'{self.reference}' has been reset to Draft.",
+                "message": f"'{self.name}' has been reset to Draft.",
                 "type": "info",
                 "refresh": True
             }
@@ -173,7 +173,7 @@ class Bom(ZnovaModel):
             "res_model": "plm.eco",
             "view_mode": "form",
             "res_id": self.eco_id.id,
-            "name": f"ECO for {self.reference}"
+            "name": f"ECO for {self.name}"
         }
 
     @classmethod

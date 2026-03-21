@@ -37,6 +37,11 @@ class BaseField:
     def get_column(self, field_name: str) -> Column:
         """Generate SQLAlchemy column"""
         raise NotImplementedError
+
+    @property
+    def _is_always_required(self) -> bool:
+        """True only when required is literally True (not a domain string)."""
+        return self.required is True
     
     def get_ui_metadata(self, field_name: str) -> Dict[str, Any]:
         """Generate UI metadata"""
@@ -89,7 +94,7 @@ class Char(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(String(self.size), nullable=not self.required, default=self.default)
+        return Column(String(self.size), nullable=not self._is_always_required, default=self.default)
 
 
 class Text(BaseField):
@@ -99,7 +104,7 @@ class Text(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLText, nullable=not self.required, default=self.default)
+        return Column(SQLText, nullable=not self._is_always_required, default=self.default)
 
 
 class Integer(BaseField):
@@ -109,7 +114,7 @@ class Integer(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLInteger, nullable=not self.required, default=self.default)
+        return Column(SQLInteger, nullable=not self._is_always_required, default=self.default)
 
 
 class Boolean(BaseField):
@@ -119,7 +124,7 @@ class Boolean(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLBoolean, nullable=not self.required, default=self.default)
+        return Column(SQLBoolean, nullable=not self._is_always_required, default=self.default)
 
 
 class Date(BaseField):
@@ -129,7 +134,7 @@ class Date(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLDate, nullable=not self.required, default=self.default)
+        return Column(SQLDate, nullable=not self._is_always_required, default=self.default)
 
 
 class DateTime(BaseField):
@@ -139,7 +144,7 @@ class DateTime(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLDateTime, nullable=not self.required, default=self.default)
+        return Column(SQLDateTime, nullable=not self._is_always_required, default=self.default)
 
 
 class JSON(BaseField):
@@ -149,7 +154,7 @@ class JSON(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLJSON, nullable=not self.required, default=self.default)
+        return Column(SQLJSON, nullable=not self._is_always_required, default=self.default)
 
 
 class Selection(BaseField):
@@ -165,7 +170,7 @@ class Selection(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(String(50), nullable=not self.required, default=self.default)
+        return Column(String(50), nullable=not self._is_always_required, default=self.default)
     
     def get_ui_metadata(self, field_name: str) -> Dict[str, Any]:
         metadata = super().get_ui_metadata(field_name)
@@ -197,9 +202,11 @@ class Many2one(BaseField):
         if not self.store:
             return None
         # Generate foreign key column
+        # If required is a domain string (conditional), the column must be nullable
+        is_always_required = self.required is True
         table_name = self._get_table_name(self.comodel_name)
         return Column(SQLInteger, ForeignKey(f"{table_name}.id", ondelete=self.ondelete), 
-                     nullable=not self.required)
+                     nullable=not is_always_required)
     
     def get_relationship(self, field_name: str, model_class_name: str = None, model_tablename: str = None):
         # Generate relationship using the field name without _id suffix as the relationship name
@@ -493,7 +500,7 @@ class Image(BaseField):
     def get_column(self, field_name: str) -> Column:
         if not self.store:
             return None
-        return Column(SQLText, nullable=not self.required)
+        return Column(SQLText, nullable=not self._is_always_required)
     
     def get_ui_metadata(self, field_name: str) -> Dict[str, Any]:
         metadata = super().get_ui_metadata(field_name)

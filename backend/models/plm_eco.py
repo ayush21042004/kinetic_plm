@@ -1,5 +1,5 @@
 from backend.core.znova_model import ZnovaModel
-from backend.core import fields
+from backend.core import fields, api
 from backend.core.exceptions import UserError
 
 
@@ -143,6 +143,67 @@ class Eco(ZnovaModel):
             ]
         }
     }
+
+    @api.onchange("product_id")
+    def _onchange_product_id(self):
+        """When product changes, populate eco fields from the product's current version."""
+        if not self.product_id:
+            return
+
+        # The base trigger_onchange loads the related object as self.product (strips _id)
+        product = getattr(self, 'product', None)
+        if not product:
+            return
+
+        # current_version_id -> relation_attr is 'current_version'
+        version = getattr(product, 'current_version', None)
+        if not version:
+            return
+
+        self.eco_name = version.name or ""
+        self.eco_default_code = version.default_code or ""
+        self.eco_sale_price = version.sale_price or 0
+        self.eco_cost_price = version.cost_price or 0
+
+    @classmethod
+    def trigger_onchange(cls, vals: dict, field_name: str, db=None):
+        """
+        Override to also return attachment data when product_id changes,
+        since the base implementation strips attachments from the result.
+        """
+        result = super().trigger_onchange(vals, field_name, db=db)
+
+        # If product_id changed, also fetch attachments from the current version
+        if field_name == "product_id" and db:
+            product_id = vals.get("product_id")
+            if isinstance(product_id, dict):
+                product_id = product_id.get("id")
+            if product_id:
+                try:
+                    from backend.core.registry import registry
+                    product_model = registry.get_model("product.product")
+                    attachment_model = registry.get_model("ir.attachment")
+                    if product_model and attachment_model:
+                        product = db.get(product_model, product_id)
+                        if product and product.current_version_id:
+                            version_id = (
+                                product.current_version_id.id
+                                if hasattr(product.current_version_id, "id")
+                                else product.current_version_id
+                            )
+                            attachments = db.query(attachment_model).filter(
+                                attachment_model.res_model == "product.version",
+                                attachment_model.res_id == version_id,
+                                attachment_model.res_field == "attachments"
+                            ).all()
+                            result["eco_attachments"] = [
+                                att.to_dict(max_depth=0) for att in attachments
+                            ]
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Could not load version attachments in onchange: {e}")
+
+        return result
 
     @classmethod
     def _validate_type_required(cls, vals: dict):
