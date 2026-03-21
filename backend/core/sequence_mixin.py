@@ -143,6 +143,7 @@ class SequenceMixin:
             raise UserError(f"No sequence code defined for model {cls.__name__}")
             
         from backend.models.sequence import Sequence
+        from backend.core.base_model import Environment
         
         # Check if sequence exists
         env = Environment(db)
@@ -175,6 +176,7 @@ class SequenceMixin:
         if not cls._sequence_code:
             raise UserError(f"No sequence code defined for model {cls.__name__}")
             
+        from backend.core.base_model import Environment
         env = Environment(db)
         sequence = env['sequence'].search([('code', '=', cls._sequence_code)], limit=1)
         if not sequence:

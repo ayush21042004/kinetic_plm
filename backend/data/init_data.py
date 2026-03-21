@@ -34,6 +34,31 @@ RECORDS = {
         "noupdate": True
     },
 
+    # ── Sequences ──────────────────────────────────────────────────────────────
+
+    "sequence_mrp_bom": {
+        "model": "sequence",
+        "values": {
+            "name": "Bill of Materials Sequence",
+            "code": "mrp.bom",
+            "prefix": "BOM",
+            "padding": 5,
+            "number_next": 1
+        },
+        "noupdate": True
+    },
+    "sequence_plm_eco": {
+        "model": "sequence",
+        "values": {
+            "name": "Engineering Change Order Sequence",
+            "code": "plm.eco",
+            "prefix": "ECO",
+            "padding": 5,
+            "number_next": 1
+        },
+        "noupdate": True
+    },
+
     # ── Admin User ─────────────────────────────────────────────────────────────
 
     "user_admin": {

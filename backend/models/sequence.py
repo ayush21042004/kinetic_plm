@@ -141,6 +141,7 @@ class Sequence(ZnovaModel):
     @classmethod
     def next_by_code(cls, db: Session, code: str):
         """Get the next number for a sequence by its code."""
+        from backend.core.base_model import Environment
         env = Environment(db)
         sequence = env['sequence'].search([('code', '=', code), ('active', '=', True)], limit=1)
         if not sequence:
@@ -168,6 +169,7 @@ class Sequence(ZnovaModel):
     @classmethod
     def get_sequence_info(cls, db: Session, code: str):
         """Get information about a sequence without consuming a number."""
+        from backend.core.base_model import Environment
         env = Environment(db)
         sequence = env['sequence'].search([('code', '=', code)], limit=1)
         if not sequence:

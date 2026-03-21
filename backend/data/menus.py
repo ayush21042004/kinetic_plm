@@ -39,17 +39,23 @@ def initialize_menus(menu_manager: 'MenuManager'):
         ]
     ))
 
-    # ── Settings ──────────────────────────────────────────────────────────────
-    settings_group = "Settings"
-    menu_manager.add_item(settings_group, MenuItem(
-        "users", "Users", "/models/user", "Users", sequence=10, groups=["admin"]
-    ))
-    menu_manager.add_item(settings_group, MenuItem(
-        "roles", "Roles", "/models/role", "Shield", sequence=20, groups=["admin"]
-    ))
-    menu_manager.add_item(settings_group, MenuItem(
-        "sequences", "Sequences", "/models/sequence", "LayoutGrid", sequence=30, groups=["admin"]
-    ))
-    menu_manager.add_item(settings_group, MenuItem(
-        "crons", "Cron Jobs", "/models/cron", "Clock", sequence=40, groups=["admin"]
+    # Settings (dropdown under ECO group)
+    menu_manager.add_item(eco_group, MenuItem(
+        "settings", "Settings", None,
+        "Settings", sequence=30,
+        groups=["admin"],
+        children=[
+            MenuItem(
+                "users", "Users", "/models/user",
+                "Users", sequence=10, groups=["admin"]
+            ),
+            MenuItem(
+                "sequences", "Sequences", "/models/sequence",
+                "LayoutGrid", sequence=30, groups=["admin"]
+            ),
+            MenuItem(
+                "crons", "Cron Jobs", "/models/cron",
+                "Clock", sequence=40, groups=["admin"]
+            ),
+        ]
     ))

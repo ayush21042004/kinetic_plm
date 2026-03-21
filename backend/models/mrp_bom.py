@@ -10,9 +10,11 @@ class Bom(ZnovaModel):
     _name_field_ = "name"
     _description_ = "Bill of Materials"
 
+    _sequence_field = "name"
+    _sequence_code = "mrp.bom"
+
     name = fields.Char(label="Reference", required=True, size=100, tracking=True,
-                       help="e.g. BOM-001, BoM-v2",
-                       readonly="[('state', 'in', ['active', 'archived'])]")
+                       help="e.g. BOM-00001", default="New", readonly=True)
 
     product_version_id = fields.Many2one(
         "product.version", label="Product", required=True, tracking=True,
@@ -178,7 +180,12 @@ class Bom(ZnovaModel):
 
     @classmethod
     def create(cls, db, vals: dict):
-        """Validate that no component's product version matches the BOM's product version."""
+        """Auto-generate sequence for name, validate no self-reference in components."""
+        # Generate sequence if name is New/empty
+        if vals.get("name") in (None, "", "New", "/"):
+            from backend.models.sequence import Sequence
+            vals["name"] = Sequence.next_by_code(db, cls._sequence_code)
+
         env = cls.get_env(db)
 
         bom_version_id = vals.get("product_version_id")

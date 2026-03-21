@@ -9,8 +9,11 @@ class Eco(ZnovaModel):
     _name_field_ = "name"
     _description_ = "Engineering Change Order"
 
+    _sequence_field = "name"
+    _sequence_code = "plm.eco"
+
     name = fields.Char(label="ECO Reference", required=True, size=100, tracking=True,
-                       help="e.g. ECO-2024-001")
+                       help="e.g. ECO-00001", default="New", readonly=True)
 
     type = fields.Selection([
         ("product", "Product"),
@@ -150,34 +153,48 @@ class Eco(ZnovaModel):
         if not self.product_id:
             return
 
-        # The base trigger_onchange loads the related object as self.product (strips _id)
         product = getattr(self, 'product', None)
         if not product:
+            print(f"[ECO onchange product_id] no product object loaded")
             return
 
-        # current_version_id -> relation_attr is 'current_version'
         version = getattr(product, 'current_version', None)
         if not version:
+            print(f"[ECO onchange product_id] product {product.id} has no current_version")
             return
 
+        print(f"[ECO onchange product_id] filling from version id={version.id} name={version.name}")
         self.eco_name = version.name or ""
         self.eco_default_code = version.default_code or ""
         self.eco_sale_price = version.sale_price or 0
         self.eco_cost_price = version.cost_price or 0
 
+    @api.onchange("bom_id")
+    def _onchange_bom_id(self):
+        """Marker method so the framework sets onchange=True on bom_id in UI metadata.
+        Actual line population is handled in trigger_onchange override."""
+        print(f"[ECO onchange bom_id] triggered, bom_id={self.bom_id}")
+
     @classmethod
     def trigger_onchange(cls, vals: dict, field_name: str, db=None):
         """
-        Override to also return attachment data when product_id changes,
-        since the base implementation strips attachments from the result.
+        Override to handle attachment population for product_id onchange,
+        and BOM line population for bom_id onchange.
         """
+        print(f"[ECO trigger_onchange] field_name={field_name}, vals={vals}")
         result = super().trigger_onchange(vals, field_name, db=db)
+        print(f"[ECO trigger_onchange] base result keys={list(result.keys())}")
 
-        # If product_id changed, also fetch attachments from the current version
-        if field_name == "product_id" and db:
+        if not db:
+            print(f"[ECO trigger_onchange] no db session, returning base result")
+            return result
+
+        # ── product_id changed: inject version attachments ─────────────────────
+        if field_name == "product_id":
             product_id = vals.get("product_id")
             if isinstance(product_id, dict):
                 product_id = product_id.get("id")
+            print(f"[ECO trigger_onchange] product_id resolved={product_id}")
             if product_id:
                 try:
                     from backend.core.registry import registry
@@ -185,6 +202,7 @@ class Eco(ZnovaModel):
                     attachment_model = registry.get_model("ir.attachment")
                     if product_model and attachment_model:
                         product = db.get(product_model, product_id)
+                        print(f"[ECO trigger_onchange] product={product}, current_version_id={getattr(product, 'current_version_id', None) if product else None}")
                         if product and product.current_version_id:
                             version_id = (
                                 product.current_version_id.id
@@ -196,13 +214,66 @@ class Eco(ZnovaModel):
                                 attachment_model.res_id == version_id,
                                 attachment_model.res_field == "attachments"
                             ).all()
+                            print(f"[ECO trigger_onchange] found {len(attachments)} attachments for version {version_id}")
                             result["eco_attachments"] = [
                                 att.to_dict(max_depth=0) for att in attachments
                             ]
                 except Exception as e:
                     import logging
-                    logging.getLogger(__name__).warning(f"Could not load version attachments in onchange: {e}")
+                    logging.getLogger(__name__).warning(
+                        f"Could not load version attachments in onchange: {e}"
+                    )
+                    print(f"[ECO trigger_onchange] attachment error: {e}")
 
+        # ── bom_id changed: populate eco_line_ids from BOM lines ───────────────
+        elif field_name == "bom_id":
+            bom_id = vals.get("bom_id")
+            if isinstance(bom_id, dict):
+                bom_id = bom_id.get("id")
+            print(f"[ECO trigger_onchange] bom_id resolved={bom_id}")
+            if bom_id:
+                try:
+                    from backend.core.registry import registry
+                    bom_line_model = registry.get_model("mrp.bom.line")
+                    print(f"[ECO trigger_onchange] bom_line_model={bom_line_model}")
+                    if bom_line_model:
+                        lines = db.query(bom_line_model).filter(
+                            bom_line_model.__table__.c.bom_id == bom_id
+                        ).all()
+                        print(f"[ECO trigger_onchange] found {len(lines)} BOM lines for bom_id={bom_id}")
+                        eco_lines = []
+                        for line in lines:
+                            comp_obj = line.component_product_id
+                            print(f"[ECO trigger_onchange] line id={line.id}, comp_obj={comp_obj}, type={type(comp_obj)}")
+                            if comp_obj and hasattr(comp_obj, 'id'):
+                                comp_id = comp_obj.id
+                                comp_name = comp_obj.name
+                            else:
+                                comp_id = line._raw_id('component_product_id')
+                                comp_name = str(comp_id) if comp_id else None
+                            print(f"[ECO trigger_onchange] comp_id={comp_id}, comp_name={comp_name}")
+                            eco_lines.append({
+                                "id": None,
+                                "component_product_id": {
+                                    "id": comp_id,
+                                    "display_name": comp_name or str(comp_id),
+                                } if comp_id else None,
+                                "quantity": line.quantity,
+                                "notes": line.notes or "",
+                            })
+                        print(f"[ECO trigger_onchange] eco_lines={eco_lines}")
+                        result["eco_line_ids"] = eco_lines
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Could not load BOM lines in onchange: {e}"
+                    )
+                    print(f"[ECO trigger_onchange] BOM lines error: {e}")
+            else:
+                print(f"[ECO trigger_onchange] bom_id cleared, wiping eco_line_ids")
+                result["eco_line_ids"] = []
+
+        print(f"[ECO trigger_onchange] final result keys={list(result.keys())}, eco_line_ids={result.get('eco_line_ids')}")
         return result
 
     @classmethod
@@ -217,6 +288,11 @@ class Eco(ZnovaModel):
 
     @classmethod
     def create(cls, db, vals: dict):
+        # Generate sequence if name is New/empty
+        if vals.get("name") in (None, "", "New", "/"):
+            from backend.models.sequence import Sequence
+            vals["name"] = Sequence.next_by_code(db, cls._sequence_code)
+
         # Unwrap Many2one dicts
         for f in ("product_id", "bom_id"):
             if isinstance(vals.get(f), dict):
