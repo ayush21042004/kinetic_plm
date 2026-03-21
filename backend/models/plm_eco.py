@@ -114,6 +114,7 @@ class Eco(ZnovaModel):
     new_bom_count = fields.Integer(label="New BoM", compute="_compute_new_bom_count", store=False)
     single_bom_count = fields.Integer(label="BoM", compute="_compute_single_bom_count", store=False)
     comparison_count = fields.Integer(label="Compare", compute="_compute_comparison_count", store=False)
+    ai_impact_analysis = fields.Text(label="AI Impact Analysis", readonly=True)
 
     _role_permissions = {
         "admin":       {"create": True,  "read": True, "write": True,  "delete": True,  "domain": []},
@@ -180,6 +181,13 @@ class Eco(ZnovaModel):
                     "type": "warning",
                     "method": "action_move_to_draft",
                     "invisible": "[('stage_is_refused', '=', False)]"
+                },
+                {
+                    "name": "generate_ai_analysis",
+                    "label": "Analyze Impact (AI)",
+                    "type": "secondary",
+                    "method": "action_generate_ai_analysis",
+                    "invisible": "['|', ('stage_is_last', '=', False), ('update_version', '=', False)]"
                 }
             ],
             "smart_buttons": [
@@ -272,6 +280,11 @@ class Eco(ZnovaModel):
                 {
                     "title": "Approvals",
                     "fields": ["approval_ids"]
+                },
+                {
+                    "title": "Analysis",
+                    "invisible": "[('update_version', '=', False)]",
+                    "fields": ["ai_impact_analysis"]
                 }
             ]
         }
@@ -1051,6 +1064,8 @@ class Eco(ZnovaModel):
                 self._activate_bom_from_eco(db)
             self._notify_last_stage_completion(db)
 
+            # Manual AI Analysis is now triggered via button
+
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -1114,6 +1129,82 @@ class Eco(ZnovaModel):
                 "message": f"ECO moved to stage: {draft_stage.name}",
                 "type": "info",
                 "refresh": True,
+            }
+        }
+
+    def action_generate_ai_analysis(self):
+        """Manual trigger to generate AI Impact Analysis asynchronously."""
+        db = self._get_db()
+        if not db:
+            return {"type": "error", "message": "No database session"}
+
+        # Determine the user who triggered this action for notification
+        # self is a Recordset, we need the record for specific attributes
+        current_user_id = getattr(self, "_action_user_id", None) or getattr(self, "_audit_user_id", None)
+        if not current_user_id:
+            # Fallback to system user or first user if context is missing
+            current_user_id = 1
+
+        import threading
+        from backend.core.database import SessionLocal
+        
+        eco_id = self.id
+        
+        def run_analysis_background():
+            # Create a fresh database session for the background thread
+            bg_db = SessionLocal()
+            try:
+                from backend.core.base_model import Environment
+                from backend.services.ai_service import get_ai_service
+                from backend.services.notification_service import get_notification_service
+                
+                # Re-browse record in the new session
+                env = Environment(bg_db)
+                eco_record = env['plm.eco'].browse(eco_id)
+                if not eco_record.exists():
+                    return
+
+                ai_service = get_ai_service()
+                eco_data = eco_record.get_comparison_payload()
+                analysis = ai_service.generate_impact_analysis(eco_data)
+                
+                # Store the result
+                eco_record.write({"ai_impact_analysis": analysis})
+                bg_db.commit()
+                
+                # Send WebSocket notification to the user
+                notif_service = get_notification_service(bg_db)
+                notif_service.notify_user(
+                    user_id=current_user_id,
+                    title="AI Analysis Complete",
+                    message=f"The impact analysis for {eco_record.name} has been generated.",
+                    notification_type="success",
+                    action={
+                        "type": "navigate",
+                        "target": f"/models/plm.eco/{eco_id}",
+                        "params": {
+                            "tab": "Analysis"
+                        }
+                    }
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"❌ Background AI Analysis failed: {e}")
+                bg_db.rollback()
+            finally:
+                bg_db.close()
+
+        # Start the background execution
+        threading.Thread(target=run_analysis_background, daemon=True).start()
+        
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Analysis Started",
+                "message": "The AI is processing the impact analysis in the background. You'll receive a notification once it's finished.",
+                "type": "info",
+                "refresh": False
             }
         }
 

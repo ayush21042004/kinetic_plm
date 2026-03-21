@@ -83,7 +83,7 @@ class NotificationService {
   private setupOnlineOfflineHandlers() {
     const handleOnline = () => {
       isOnline.value = true;
-      
+
       if (!isConnected.value && this.currentUserId) {
         this.connectWebSocket();
       }
@@ -104,10 +104,10 @@ class NotificationService {
     }
 
     this.currentUserId = userId;
-    
+
     // Fetch initial notifications
     await this.fetchRecentNotifications();
-    
+
     // Connect WebSocket
     if (isOnline.value) {
       this.connectWebSocket();
@@ -150,43 +150,43 @@ class NotificationService {
           const wsUrl = envApiUrl.replace(/^https?:/, window.location.protocol === 'https:' ? 'wss:' : 'ws:');
           return `${wsUrl}/ws/notifications`;
         }
-        
+
         const currentHost = window.location.hostname;
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        
+
         if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
           return `${wsProtocol}//localhost:8000/api/v1/ws/notifications`;
         }
-        
+
         if (currentHost.match(/^192\.168\.\d+\.\d+$/) || currentHost.match(/^10\.\d+\.\d+\.\d+$/)) {
           return `${wsProtocol}//${currentHost}:8000/api/v1/ws/notifications`;
         }
-        
+
         if (currentHost.includes('ngrok')) {
           return `${wsProtocol}//${currentHost}/api/v1/ws/notifications`;
         }
-        
+
         return `${wsProtocol}//localhost:8000/api/v1/ws/notifications`;
       };
-      
+
       const wsUrl = `${getWebSocketUrl()}?token=${token.value}`;
-      
+
       websocket = new WebSocket(wsUrl);
-      
+
       websocket.onopen = () => {
         isConnected.value = true;
         connectionStatus.value = 'connected';
         connectionError.value = null;
         reconnectAttempts = 0;
         isReconnecting.value = false;
-        
+
         this.startHeartbeat();
-        
+
         if (reconnectAttempts > 0) {
           this.syncMissedNotifications();
         }
       };
-      
+
       websocket.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
@@ -196,19 +196,19 @@ class NotificationService {
           connectionError.value = 'Message parsing error';
         }
       };
-      
+
       websocket.onclose = (event) => {
         isConnected.value = false;
         connectionStatus.value = 'disconnected';
         websocket = null;
-        
+
         this.stopHeartbeat();
-        
+
         if (event.code === 1000) {
           connectionError.value = null;
           return;
         }
-        
+
         if (event.code === 1006) {
           connectionError.value = 'Connection lost unexpectedly';
         } else if (event.code === 1011) {
@@ -219,15 +219,15 @@ class NotificationService {
         } else {
           connectionError.value = `Connection closed: ${event.reason || 'Unknown reason'}`;
         }
-        
+
         this.attemptReconnection();
       };
-      
+
       websocket.onerror = (error) => {
         connectionError.value = 'Connection error occurred';
         connectionStatus.value = 'error';
       };
-      
+
     } catch (error) {
       connectionError.value = 'Failed to establish connection';
       connectionStatus.value = 'error';
@@ -239,15 +239,15 @@ class NotificationService {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
-    
+
     this.stopHeartbeat();
     isReconnecting.value = false;
-    
+
     if (websocket) {
       websocket.close(1000, 'User disconnected');
       websocket = null;
     }
-    
+
     isConnected.value = false;
     connectionStatus.value = 'disconnected';
     connectionError.value = null;
@@ -261,19 +261,19 @@ class NotificationService {
       isReconnecting.value = false;
       return;
     }
-    
+
     if (!isOnline.value) {
       return;
     }
-    
+
     isReconnecting.value = true;
     connectionStatus.value = 'reconnecting';
-    
+
     const baseDelay = 1000;
     const maxDelay = 30000;
     const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts), maxDelay);
     const jitter = Math.random() * 1000;
-    
+
     reconnectTimeout = setTimeout(() => {
       reconnectAttempts++;
       this.connectWebSocket();
@@ -287,7 +287,7 @@ class NotificationService {
           type: 'heartbeat',
           timestamp: new Date().toISOString()
         }));
-        
+
         heartbeatTimeout = setTimeout(() => {
           if (websocket) {
             websocket.close();
@@ -302,7 +302,7 @@ class NotificationService {
       clearInterval(heartbeatInterval);
       heartbeatInterval = null;
     }
-    
+
     if (heartbeatTimeout) {
       clearTimeout(heartbeatTimeout);
       heartbeatTimeout = null;
@@ -331,7 +331,7 @@ class NotificationService {
               params: rawNotification.action.params
             } : undefined
           };
-          
+
           realtimeNotifications.value.unshift(notification);
         } else if (message.data.action === 'read') {
           const notificationId = message.data.notification.server_id || message.data.notification.id;
@@ -361,10 +361,10 @@ class NotificationService {
   private async syncMissedNotifications() {
     try {
       const notifications = await this.fetchRecentNotifications();
-      
+
       const existingIds = new Set(realtimeNotifications.value.map(n => n.server_id));
       const newNotifications = notifications.filter(n => !existingIds.has(n.server_id));
-      
+
       if (newNotifications.length > 0) {
         realtimeNotifications.value.unshift(...newNotifications);
       }
@@ -383,7 +383,7 @@ class NotificationService {
     try {
       const response = await api.get('/notifications?limit=50');
       const notifications = response.data.notifications || [];
-      
+
       // Map API response to RealtimeNotification format
       const mappedNotifications = notifications.map((notification: any) => ({
         ...notification,
@@ -394,7 +394,7 @@ class NotificationService {
           params: notification.action_params
         } : undefined
       }));
-      
+
       realtimeNotifications.value = mappedNotifications;
       return mappedNotifications;
     } catch (error: any) {
@@ -402,7 +402,7 @@ class NotificationService {
         connectionError.value = 'Authentication expired';
         return [];
       }
-      
+
       connectionError.value = 'Network error while fetching notifications';
       return [];
     }
@@ -432,7 +432,7 @@ class NotificationService {
       if (notification && originalReadState !== undefined) {
         notification.read = originalReadState;
       }
-      
+
       if (error.response?.status === 401) {
         connectionError.value = 'Authentication expired';
         return;
@@ -461,7 +461,7 @@ class NotificationService {
           notification.read = read;
         }
       });
-      
+
       // Silent error handling
     }
   }
@@ -481,7 +481,7 @@ class NotificationService {
             try {
               const url = new URL(action.target, window.location.origin);
               const path = url.pathname + url.search + url.hash;
-              
+
               // Add query params if provided
               if (action.params) {
                 const query = { ...action.params };

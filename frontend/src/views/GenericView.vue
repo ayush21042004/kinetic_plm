@@ -886,16 +886,15 @@ onMounted(() => {
 const lastPath = ref('');
 const lastId = ref('');
 
-watch(() => [props.model, props.initialId, route.query], ([newModel, newId, newQuery], [oldModel, oldId, oldQuery]) => {
-  const currentPath = `${newModel}/${newId || 'list'}`;
-  const previousPath = `${oldModel}/${oldId || 'list'}`;
-  
+watch(() => [props.model, props.initialId as string, route.query], ([newModel, newId, newQuery], [oldModel, oldId, oldQuery]) => {
+  const currentPath = `${newModel}/${(newId as string) || 'list'}`;
+  const previousPath = `${oldModel}/${(oldId as string) || 'list'}`;
   
   // Only call init() if the path actually changed (model or id changed)
   // Don't call init() if only query parameters changed (filters, search, groupBy)
   if (currentPath !== previousPath) {
     lastPath.value = currentPath;
-    lastId.value = newId || '';
+    lastId.value = (newId as string) || '';
     init();
   } else {
   }

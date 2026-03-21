@@ -3016,7 +3016,7 @@ defineExpose({
     max-width: 100%;
   }
   
-  .view-value { font-size: 1rem; color: v.$text-primary; font-weight: 500; }
+  .view-value { font-size: 1rem; color: v.$text-primary; font-weight: 500; white-space: pre-wrap; }
 }
 
 .form-control {
