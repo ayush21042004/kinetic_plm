@@ -270,6 +270,7 @@ class Many2one(BaseField):
             "role": "Role",
             "mrp.bom.line": "Line",
             "plm.eco.line": "EcoLine",
+            "plm.eco.approval": "EcoApproval",
             "plm.eco.stage": "EcoStage",
             "plm.eco.stage.line": "EcoStageLine",
         }
@@ -343,6 +344,7 @@ class One2many(BaseField):
             "role": "Role",
             "mrp.bom.line": "Line",
             "plm.eco.line": "EcoLine",
+            "plm.eco.approval": "EcoApproval",
             "plm.eco.stage": "EcoStage",
             "plm.eco.stage.line": "EcoStageLine",
         }

@@ -974,10 +974,17 @@ def call_model_method(
         raise HTTPException(status_code=400, detail=f"Method '{method_name}' not found or not callable on {model_name}")
 
     try:
+        if getattr(record, "_records", None):
+            for raw_record in record._records:
+                setattr(raw_record, "_action_user_id", current_user.id)
+                setattr(raw_record, "_audit_user_id", current_user.id)
+
         # Call the method
         result = method()
         db.commit()
-        db.refresh(record)
+        if getattr(record, "_records", None):
+            for raw_record in record._records:
+                db.refresh(raw_record)
         return result
     except Exception as e:
         db.rollback()

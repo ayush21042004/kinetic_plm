@@ -1,3 +1,4 @@
+from datetime import datetime
 from backend.core.znova_model import ZnovaModel
 from backend.core import fields, api
 from backend.core.exceptions import UserError
@@ -28,10 +29,23 @@ class Eco(ZnovaModel):
         "plm.eco.stage", label="Stage", tracking=True, readonly=True,
         help="Current stage of this ECO in the approval workflow."
     )
+    able_to_move_to_next_stage = fields.Boolean(
+        label="Able to Move to Next Stage",
+        default=False,
+        readonly=True,
+        tracking=True,
+        help="Becomes true once all required approvals for the current stage are complete."
+    )
 
     description = fields.Text(label="Description", tracking=True)
     update_version = fields.Boolean(label="Update Version", default=True, tracking=True)
     initiated_by_id = fields.Many2one("user", label="Initiated By", default="current_user", tracking=True)
+    approval_ids = fields.One2many(
+        "plm.eco.approval", "eco_id",
+        label="Approvals",
+        columns=["stage_id", "user_id", "approval_required", "approved", "approval_time"],
+        readonly=True
+    )
 
     # Shown in top form, hidden based on type
     product_id = fields.Many2one(
@@ -110,11 +124,18 @@ class Eco(ZnovaModel):
             ],
             "header_buttons": [
                 {
+                    "name": "approve_current_stage",
+                    "label": "Approve",
+                    "type": "primary",
+                    "method": "action_approve_current_stage",
+                    "invisible": "[('can_current_user_approve', '=', False)]"
+                },
+                {
                     "name": "move_to_next_stage",
                     "label": "Move to Next stage",
                     "type": "primary",
                     "method": "action_move_to_next_stage",
-                    "invisible": "[('stage_is_last', '=', True)]"
+                    "invisible": "[('able_to_move_to_next_stage', '=', False)]"
                 }
             ],
             "tabs": [
@@ -141,6 +162,15 @@ class Eco(ZnovaModel):
                             "fields": ["eco_line_ids"]
                         }
                     ]
+                },
+                {
+                    "title": "Approvals",
+                    "groups": [
+                        {
+                            "title": "Stage Approval Status",
+                            "fields": ["approval_ids"]
+                        }
+                    ]
                 }
             ]
         }
@@ -154,19 +184,117 @@ class Eco(ZnovaModel):
             data['stage_is_last'] = bool(stage.is_last_stage)
         else:
             data['stage_is_last'] = False
+        data['able_to_move_to_next_stage'] = bool(self.able_to_move_to_next_stage)
+
+        user_context = kwargs.get("user_context") or {}
+        current_user_id = user_context.get("id")
+        data['can_current_user_approve'] = self._can_user_approve_current_stage(current_user_id)
         return data
+
+    def _get_db(self):
+        from sqlalchemy.orm import object_session
+        return object_session(self)
+
+    def _get_current_stage_approvals(self, db=None):
+        from backend.core.base_model import Environment
+
+        db = db or self._get_db()
+        if not db or not self.id or not self.stage_id:
+            return []
+
+        env = Environment(db)
+        approvals = env["plm.eco.approval"].search([
+            ("eco_id", "=", self.id),
+            ("stage_id", "=", self.stage_id.id),
+        ], order="id")
+        return list(approvals._records)
+
+    def _can_user_approve_current_stage(self, user_id):
+        if not user_id or not self.stage_id or not self.id:
+            return False
+
+        for approval in self._get_current_stage_approvals():
+            if (
+                approval.approval_required
+                and not approval.approved
+                and approval.user_id
+                and approval.user_id.id == user_id
+            ):
+                return True
+        return False
+
+    def _ensure_stage_approval_tracking(self, db):
+        if not db or not self.id or not self.stage_id:
+            return
+
+        existing_by_user = {
+            approval.user_id.id: approval
+            for approval in self._get_current_stage_approvals(db)
+            if approval.user_id
+        }
+
+        for line in self.stage_id.approval_line_ids or []:
+            if not line.user_id or line.user_id.id in existing_by_user:
+                continue
+
+            from backend.core.registry import registry
+            approval_cls = registry.get_model("plm.eco.approval")
+            approval = approval_cls(
+                eco_id=self.id,
+                stage_id=self.stage_id.id,
+                user_id=line.user_id.id,
+                approval_required=bool(line.approval_required),
+                approved=False,
+                approval_time=None,
+            )
+            db.add(approval)
+            db.flush()
+
+    def _update_stage_movement_state(self, db):
+        stage = self.stage_id
+        if not stage:
+            self.able_to_move_to_next_stage = False
+            db.flush()
+            return
+
+        approvals = self._get_current_stage_approvals(db)
+        required_approvals = [approval for approval in approvals if approval.approval_required]
+
+        self.able_to_move_to_next_stage = (
+            not bool(stage.is_last_stage)
+            and all(approval.approved for approval in required_approvals)
+        )
+        db.flush()
+
+    def _sync_stage_approval_state(self, db):
+        if not db:
+            return
+        self._ensure_stage_approval_tracking(db)
+        self._update_stage_movement_state(db)
+        db.refresh(self)
 
     def action_move_to_next_stage(self):
         """Move this ECO to the next stage ordered by sequence."""
-        from sqlalchemy.orm import object_session
         from backend.core.base_model import Environment
-        db = object_session(self)
+        db = self._get_db()
         if not db:
             return {"type": "error", "message": "No database session"}
 
         current_stage = self.stage_id
         if not current_stage:
             return {"type": "error", "message": "No current stage set"}
+
+        self._sync_stage_approval_state(db)
+        if not self.able_to_move_to_next_stage:
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "Approvals Pending",
+                    "message": "All required approvals must be completed before moving to the next stage.",
+                    "type": "warning",
+                }
+            }
 
         current_seq = current_stage.sequence if hasattr(current_stage, "sequence") else 0
 
@@ -188,7 +316,6 @@ class Eco(ZnovaModel):
 
         next_stage = all_stages[0]
         self.write(db, {"stage_id": next_stage.id})
-        db.commit()
 
         return {
             "type": "ir.actions.client",
@@ -196,6 +323,53 @@ class Eco(ZnovaModel):
             "params": {
                 "title": "Stage Updated",
                 "message": f"ECO moved to stage: {next_stage.name}",
+                "type": "success",
+                "refresh": True,
+            }
+        }
+
+    def action_approve_current_stage(self):
+        db = self._get_db()
+        if not db:
+            return {"type": "error", "message": "No database session"}
+        if not self.stage_id:
+            raise UserError("This ECO does not have a current stage.")
+
+        current_user_id = getattr(self, "_action_user_id", None) or getattr(self, "_audit_user_id", None)
+        if not current_user_id:
+            raise UserError("Could not determine the current user for approval.")
+
+        approvals = [
+            approval for approval in self._get_current_stage_approvals(db)
+            if (
+                approval.approval_required
+                and not approval.approved
+                and approval.user_id
+                and approval.user_id.id == current_user_id
+            )
+        ]
+
+        if not approvals:
+            raise UserError("You do not have any pending required approval for this ECO stage.")
+
+        approved_at = datetime.utcnow()
+        for approval in approvals:
+            approval.approved = True
+            approval.approval_time = approved_at
+
+        db.flush()
+        self._sync_stage_approval_state(db)
+
+        message = "Your approval has been recorded."
+        if self.able_to_move_to_next_stage:
+            message = "Your approval has been recorded. All required approvals are complete."
+
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Stage Approved",
+                "message": message,
                 "type": "success",
                 "refresh": True,
             }
@@ -372,13 +546,19 @@ class Eco(ZnovaModel):
             if isinstance(vals.get(f), dict):
                 vals[f] = vals[f].get("id")
         cls._validate_type_required(vals)
-        return super().create(db, vals)
+        record = super().create(db, vals)
+        record._sync_stage_approval_state(db)
+        db.commit()
+        db.refresh(record)
+        return record
 
     def write(self, *args, **kwargs):
         vals = args[1] if len(args) == 2 else (args[0] if args else kwargs)
         for f in ("product_id", "bom_id"):
             if isinstance(vals.get(f), dict):
                 vals[f] = vals[f].get("id")
+        if isinstance(vals.get("stage_id"), dict):
+            vals["stage_id"] = vals["stage_id"].get("id")
         # Merge with current values to validate the final state
         merged = {
             "type":       vals.get("type", self.type),
@@ -386,4 +566,13 @@ class Eco(ZnovaModel):
             "bom_id":     vals.get("bom_id", self.bom_id.id if self.bom_id else None),
         }
         self._validate_type_required(merged)
-        return super().write(*args, **kwargs)
+        stage_changed = "stage_id" in vals
+        result = super().write(*args, **kwargs)
+
+        db = args[0] if len(args) == 2 else self._get_db()
+        if db and (stage_changed or "able_to_move_to_next_stage" not in vals):
+            self._sync_stage_approval_state(db)
+            db.commit()
+            db.refresh(self)
+
+        return result
