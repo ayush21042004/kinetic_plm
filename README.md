@@ -1,318 +1,264 @@
-# Znova - Enterprise Web Application Framework
+# kinetic_plm
 
-A comprehensive, production-ready web application framework inspired by enterprise standards, built with FastAPI (Python) and Vue.js (TypeScript). This framework provides an enterprise-grade foundation for building scalable web applications with minimal boilerplate code.
+`kinetic_plm` is a Product Lifecycle Management application built on a FastAPI backend and a Vue 3 frontend. It is focused on engineering change control, product versioning, bill of materials management, approval workflows, and role-based access for engineering, approvers, operations, and admin users.
 
-## 🚀 Quick Start
+Some code and internal docs still refer to the underlying framework as `Znova`, but this repository is the Kinetic PLM application.
 
-### Prerequisites
+## What The App Covers
 
-- Python 3.8+
-- Node.js 16+
+- Engineering Change Orders (`plm.eco`) for product and BoM changes
+- Product version management (`product.version`)
+- Bills of Materials and routing/work orders (`mrp.bom`, `mrp.routing.workcenter`)
+- Stage-based approval flow with approver assignments
+- Record comparison views for versions and BoMs
+- Notifications, background jobs, audit logging, and websocket support
+- Metadata-driven CRUD screens generated from backend model definitions
+
+## Tech Stack
+
+- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL
+- Frontend: Vue 3, Vite, TypeScript, Pinia, Vue Router
+- Auth: JWT-based authentication with role permissions
+- Realtime: WebSocket-based notifications
+- Optional integrations: Google OAuth, SMTP email, Gemini-based AI impact analysis
+
+## Repository Layout
+
+```text
+kinetic_plm/
+├── backend/
+│   ├── api/                    # REST endpoints
+│   ├── core/                   # ORM, registry, migrations, data loader, policies
+│   ├── data/                   # Core seed data: roles, stages, menus, timezones
+│   ├── demo/                   # Optional demo records
+│   ├── migrations/             # Alembic migrations
+│   ├── models/                 # PLM domain models
+│   └── services/               # Auth, email, AI, notifications
+├── frontend/
+│   ├── src/components/         # Shared UI components
+│   ├── src/views/              # App views
+│   ├── src/stores/             # Pinia stores
+│   └── src/core/               # API and shared frontend utilities
+├── deploy/                     # Deployment configs
+├── run.py                      # Backend dev entrypoint with migration bootstrap
+├── setup_fresh.py              # Recreate DB, reset migrations, optionally load demo data
+├── DEVELOPMENT.md              # Framework-oriented developer notes
+├── requirements.txt            # Python dependencies
+└── package.json                # Root convenience scripts
+```
+
+## Prerequisites
+
+- Python 3.10+
+- Node.js 18+
 - PostgreSQL 12+
 
-### Local Development Setup
+## Environment
 
-#### 1. Clone and Configure
+Create a `.env` file in the project root. At minimum:
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd znova
-
-# Copy environment file
-cp .env.example .env
-# Edit .env with your database credentials
+```env
+DATABASE_URL=postgresql://admin:password@localhost:5432/enterprise_db
+SECRET_KEY=change-this-in-real-environments
 ```
 
-#### 2. Database Setup
+Useful optional variables:
 
-```bash
-# Create PostgreSQL database
-createdb enterprise_db
-
-# Or using psql
-psql -U postgres
-CREATE DATABASE enterprise_db;
-\q
+```env
+LOAD_DEMO_DATA=0
+FRONTEND_URL=http://localhost:5173
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM_EMAIL=
+SMTP_FROM_NAME=
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_TIMEOUT=30
+VITE_API_URL=http://localhost:8000/api/v1
 ```
 
-#### 3. Backend Setup
+Notes:
+
+- The backend defaults `DATABASE_URL` to `postgresql://admin:password@localhost:5432/enterprise_db` if not set.
+- The frontend can infer the API URL automatically, but `VITE_API_URL` is useful for non-default environments.
+
+## Installation
+
+### Backend
 
 ```bash
-# Create virtual environment
-cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r ../requirements.txt
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-#### 4. Frontend Setup
+You can also keep the virtual environment in `backend/venv`; `run.py` and `setup_fresh.py` try both locations.
+
+### Frontend
 
 ```bash
-# Install frontend dependencies
 cd frontend
 npm install
 cd ..
 ```
 
-### Starting the Application
-
-#### Option 1: Quick Start (Recommended for Development)
+Or use the root helper:
 
 ```bash
-# From project root - starts backend with auto-migration
+npm run install:all
+```
+
+## Running The Project
+
+### Option 1: Standard Development Start
+
+Start the backend from the repository root:
+
+```bash
 python run.py
 ```
 
-This will:
-- Check and create migrations if needed
-- Apply database migrations
-- Seed initial data (admin user, roles)
-- Start the backend server on http://localhost:8000
+This script:
 
-In a separate terminal:
+- restarts itself inside the virtualenv if one is found
+- checks Alembic migration setup
+- creates an initial migration if none exists
+- applies migrations
+- starts the FastAPI server on `http://localhost:8000`
+
+Then start the frontend in another terminal:
+
 ```bash
-# Start frontend
 cd frontend
 npm run dev
 ```
 
-Frontend will be available at http://localhost:5173
+Frontend default URL: `http://localhost:5173`
 
-#### Option 2: Fresh Database Setup
+### Option 2: Fresh Database Reset
 
 ```bash
-# Drops existing database, recreates it, and starts server
 python setup_fresh.py
+```
 
-# With demo data
+To include demo records:
+
+```bash
 python setup_fresh.py --demo
 ```
 
-This will:
-- Drop and recreate the database
-- Clean old migration files
-- Create fresh initial migration
-- Apply migrations
-- Seed initial data
-- Start the backend server
+This reset flow:
 
-#### Option 3: Manual Start
+- drops and recreates the target database
+- removes old migration files in `backend/migrations/versions`
+- generates a fresh initial migration
+- starts the backend server
+- loads core seed data, plus demo data when `--demo` is used
+
+### Option 3: Separate Manual Start
+
+Backend:
 
 ```bash
-# Terminal 1 - Backend
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# Terminal 2 - Frontend
-cd frontend
+Frontend:
+
+```bash
+npm --prefix frontend run dev
+```
+
+## Default Seeded Access
+
+Core data creates:
+
+- Admin: `admin@kinetic.com` / `admin123`
+
+When demo data is enabled with `python setup_fresh.py --demo`, it also creates:
+
+- Engineering: `engineer@kinetic.com` / `engineer123`
+- Approver: `approver@kinetic.com` / `approver123`
+- Operations: `ops@kinetic.com` / `ops123`
+
+## Main Data Models
+
+- `plm.eco`: engineering change orders, approval state, AI impact analysis, product/BoM change proposals
+- `product.product`: product master record
+- `product.version`: versioned product definition, pricing, attachments, linked ECO and BoM
+- `mrp.bom`: bill of materials with components and routing operations
+- `plm.eco.approval`: approval records for each ECO stage
+- `plm.eco.stage` and `plm.eco.stage.line`: configurable workflow stages and required approvers
+- `work.center`: work center master data for BoM operations
+
+## Application Behavior
+
+The backend uses metadata on each model to drive the frontend:
+
+- `_role_permissions` controls role-based CRUD access and row-level domains
+- `_search_config` drives list filters and groupings
+- `_ui_views` defines list columns, form tabs, buttons, smart buttons, and search fields
+
+That means many CRUD screens are generated automatically from backend model definitions rather than hand-built per entity.
+
+## API And URLs
+
+- Backend root: `http://localhost:8000`
+- OpenAPI docs: `http://localhost:8000/docs`
+- API base: `http://localhost:8000/api/v1`
+- Frontend dev server: `http://localhost:5173`
+
+Common route patterns in the UI:
+
+- `/models/:model`
+- `/models/:model/:id`
+- `/comparison/:model/:id`
+
+## Frontend Scripts
+
+From the repository root:
+
+```bash
 npm run dev
-```
-
-### Default Access
-
-- **Admin**: admin@example.com / admin123
-- **User**: user@example.com / user123
-- **API Docs**: http://localhost:8000/docs
-- **Frontend**: http://localhost:5173
-
-## 🏭 Production Deployment
-
-### Environment Configuration
-
-```bash
-# Update .env for production
-ENVIRONMENT=production
-DEBUG=False
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-SECRET_KEY=<generate-strong-secret-key>
-```
-
-### Option 1: Docker Deployment
-
-```bash
-# Build and start services
-docker-compose -f deploy/docker-compose.production.yml up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-### Option 2: Manual Production Deployment
-
-#### Backend
-
-```bash
-# Install production dependencies
-pip install -r requirements.txt gunicorn
-
-# Run migrations
-cd backend
-alembic upgrade head
-
-# Start with Gunicorn
-gunicorn backend.main:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --access-logfile - \
-  --error-logfile -
-```
-
-#### Frontend
-
-```bash
-# Build for production
-cd frontend
 npm run build
-
-# Serve with nginx (example config in deploy/nginx.prod.conf)
-# Copy dist/ to nginx web root
-sudo cp -r dist/* /var/www/html/
+npm run test:frontend
 ```
 
-### Production Checklist
+From `frontend/`:
 
-- [ ] Set strong SECRET_KEY in .env
-- [ ] Configure proper DATABASE_URL
-- [ ] Set ENVIRONMENT=production
-- [ ] Disable DEBUG mode
-- [ ] Configure CORS for your domain
-- [ ] Set up SSL/TLS certificates
-- [ ] Configure firewall rules
-- [ ] Set up database backups
-- [ ] Configure logging and monitoring
-- [ ] Review security settings
-
-## 🎨 Framework Features
-
-### Model System
-- Automatic CRUD with Odoo-style field definitions
-- UI auto-generated from metadata with built-in dark mode support
-- Advanced search with tag-based filtering
-
-### Real-Time Engine
-- WebSocket-driven notifications
-- Live data synchronization
-
-### Enterprise Features
-- Sequence System: Auto-numbering for business records
-- Cron Manager: Scheduled tasks and background processes
-- Secure Auth: JWT-based with Role-Based Access Control (RBAC)
-- Image handling: Upload and processing with automatic UI integration
-
-## 📁 Project Structure
-
-```
-znova/
-├── backend/                    # FastAPI Backend
-│   ├── api/                   # API endpoints
-│   ├── core/                  # Framework core
-│   ├── models/                # Application models
-│   ├── services/              # Business logic
-│   ├── data/                  # Initial data and menus
-│   ├── migrations/            # Database migrations
-│   └── scripts/               # Utility scripts
-├── frontend/                  # Vue.js Frontend
-│   ├── src/
-│   │   ├── components/        # Reusable components
-│   │   ├── views/             # Page components
-│   │   ├── stores/            # Pinia state management
-│   │   └── core/              # Core utilities
-│   └── package.json
-├── deploy/                    # Deployment configs
-├── run.py                     # Development startup script
-├── setup_fresh.py             # Fresh database setup script
-└── requirements.txt           # Python dependencies
+```bash
+npm run dev
+npm run build
+npm run test
 ```
 
-## 🔧 Core Concepts
+## Deployment Files
 
-### Model Definition
+The `deploy/` directory includes:
 
-```python
-from backend.core.base_model import BaseModel
-from backend.core import fields
+- `Dockerfile.backend`
+- `Dockerfile.frontend`
+- `nginx.prod.conf`
+- `render.yaml`
 
-class Equipment(BaseModel):
-    __tablename__ = "equipment"
+Review and adapt those files before using them in production.
 
-    name = fields.Char(label="Equipment Name", required=True)
-    status = fields.Selection([
-        ('active', 'Active'),
-        ('maintenance', 'Under Maintenance')
-    ], label="Status", default="active")
-    category_id = fields.Many2one("category", label="Category")
-    requests = fields.One2many("request", "equipment_id", label="Requests")
-```
+## Current Caveats
 
-### Automatic API Generation
+- Some log messages and internal comments still use the framework name `Znova`.
+- `setup_fresh.py` uses `fuser -k 8000/tcp 3000/tcp` during startup, which is convenient locally but should be reviewed before adapting for shared environments.
+- The frontend build currently depends on the local TypeScript/Vue toolchain state; if `vue-tsc` fails in your environment, fix that separately from app code changes.
 
-The framework automatically generates REST endpoints:
+## Development Notes
 
-- `GET /api/v1/models/equipment` - List records
-- `POST /api/v1/models/equipment` - Create record
-- `GET /api/v1/models/equipment/{id}` - Get record
-- `PUT /api/v1/models/equipment/{id}` - Update record
-- `DELETE /api/v1/models/equipment/{id}` - Delete record
+- Core seed data lives in `backend/data/`
+- Optional demo data lives in `backend/demo/`
+- Model definitions live in `backend/models/`
+- Generic UI flows are in `frontend/src/views/GenericView.vue` and shared components under `frontend/src/components/`
 
-## 🛠️ Tech Stack
-
-**Backend:**
-- FastAPI - Modern Python web framework
-- SQLAlchemy - Database ORM
-- PostgreSQL - Primary database
-- Alembic - Database migrations
-- JWT - Authentication tokens
-
-**Frontend:**
-- Vue.js 3 - Progressive JavaScript framework
-- TypeScript - Type-safe JavaScript
-- Pinia - State management
-- PrimeVue - UI component library
-- Vite - Fast build tool
-
-## 📚 Documentation
-
-- **[Development Guide](DEVELOPMENT.md)** - Complete framework documentation
-
-## 🔑 Key Features
-
-### Security
-- JWT-based authentication
-- Role-based access control
-- Server-side validation
-- CORS protection
-- SQL injection prevention
-
-### Performance
-- Database connection pooling
-- Automatic query optimization
-- Lazy loading relationships
-- Efficient WebSocket handling
-- Static file optimization
-
-### Developer Experience
-- Automatic API generation
-- Hot reload development
-- Type safety with TypeScript
-- Comprehensive error handling
-- Built-in testing framework
-
-## 📖 Getting Started
-
-1. Follow the Quick Start guide above
-2. Read the [Development Guide](DEVELOPMENT.md)
-3. Explore existing models in `backend/models/`
-4. Build your first model following the patterns
-5. Deploy using the production guide
-
----
-
-**Znova** - Building enterprise applications, simplified.
+For framework-level implementation details, see [DEVELOPMENT.md](/home/erp/workspace/Projects/kinetic_plm/DEVELOPMENT.md).
