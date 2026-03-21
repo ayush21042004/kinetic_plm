@@ -1777,10 +1777,17 @@ const getStatusOptions = () => {
     // Many2one status field (e.g. stage_id) — read from loaded relations
     if (field.type === 'many2one') {
         const rel = relations[statusField] || relations[field.relation] || [];
-        return rel.map((r: any) => ({
-            val: r.id,
-            label: r.display_name || r.name || `#${r.id}`
-        }));
+        return [...rel]
+            .sort((a: any, b: any) => {
+                const aSeq = typeof a?.sequence === 'number' ? a.sequence : Number.MAX_SAFE_INTEGER;
+                const bSeq = typeof b?.sequence === 'number' ? b.sequence : Number.MAX_SAFE_INTEGER;
+                if (aSeq !== bSeq) return aSeq - bSeq;
+                return (a?.id || 0) - (b?.id || 0);
+            })
+            .map((r: any) => ({
+                val: r.id,
+                label: r.display_name || r.name || `#${r.id}`
+            }));
     }
 
     // Handle both array and object formats for selection options
