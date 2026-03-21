@@ -247,7 +247,10 @@ import {
   Box,
   ChevronDown,
   Clock,
-  Search
+  Search,
+  Database,
+  Settings,
+  BarChart3
 } from 'lucide-vue-next';
 import NotificationContainer from '../common/NotificationContainer.vue';
 import NotificationBell from '../common/NotificationBell.vue';
@@ -297,7 +300,10 @@ const iconMap: Record<string, any> = {
   LayoutGrid,
   ClipboardList,
   Box,
-  Clock
+  Clock,
+  Database,
+  Settings,
+  BarChart3
 };
 
 const { requestReset, trail, trimToIndex } = useBreadcrumbs();

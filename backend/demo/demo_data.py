@@ -38,6 +38,16 @@ RECORDS = {
         }
     },
 
+    # ── Demo: Approval Rule For ECO Approval Stage ────────────────────────────
+    "demo_stage_approval_rule_approver": {
+        "model": "plm.eco.stage.line",
+        "values": {
+            "stage_id": "@stage_approval",
+            "user_id": "@demo_user_approver",
+            "approval_required": True,
+        }
+    },
+
     # ── Demo: Products ─────────────────────────────────────────────────────────
     "demo_product_controller": {
         "model": "product.product",

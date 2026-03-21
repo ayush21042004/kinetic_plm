@@ -104,8 +104,10 @@ class DataLoader:
         # Resolve references and magic prefixes
         processed_vals = self._resolve_values(vals)
         
-        # Remove user_id if it exists in vals (it should be passed separately, not in vals)
-        processed_vals.pop('user_id', None)
+        # Keep user_id when it is a real model field; otherwise drop it so it is not
+        # mistaken for the optional audit-tracking create argument.
+        if 'user_id' not in getattr(model_cls, '_field_definitions', {}):
+            processed_vals.pop('user_id', None)
 
         # Check for existing record by XML-ID (unique within the data loader session)
         # Note: In a production system, we'd store xml_ids in a dedicated 'ir_model_data' table.
@@ -184,6 +186,12 @@ class DataLoader:
 
         if model_name == 'cron' and 'code' in vals:
             return self.env['cron'].search([('code', '=', vals['code'])], limit=1)
+
+        if model_name == 'plm.eco.stage.line' and 'stage_id' in vals and 'user_id' in vals:
+            return self.env['plm.eco.stage.line'].search([
+                ('stage_id', '=', vals['stage_id']),
+                ('user_id', '=', vals['user_id']),
+            ], limit=1)
 
         # Generic fallback for other models (like bcm.*)
         # Check if we can find by name/rec_name

@@ -64,6 +64,12 @@ const routes = [
                 meta: { title: 'My Profile' }
             },
             {
+                path: '/reporting',
+                name: 'Reporting',
+                component: () => import('../views/ReportingView.vue'),
+                meta: { title: 'Reporting' }
+            },
+            {
                 path: '/comparison/:model/:id',
                 name: 'ComparisonView',
                 component: () => import('../views/ComparisonView.vue'),

@@ -628,6 +628,103 @@ class Eco(ZnovaModel):
             )
             db.add(approval)
             db.flush()
+            self._notify_new_approval_assignment(line.user_id)
+
+    def _notification_target(self):
+        if not self.id:
+            return None
+        return f"/models/plm.eco/{self.id}"
+
+    def _notification_action(self):
+        target = self._notification_target()
+        if not target:
+            return None
+        return {
+            "type": "navigate",
+            "target": target,
+            "params": {
+                "model": "plm.eco",
+                "id": self.id,
+            }
+        }
+
+    @classmethod
+    def _get_users_for_roles(cls, db, role_names):
+        from backend.core.base_model import Environment
+
+        env = Environment(db)
+        users = []
+        seen_user_ids = set()
+
+        for role_name in role_names:
+            roles = env["role"].search([("name", "=", role_name)], limit=1)
+            if not roles:
+                continue
+
+            role = roles[0]
+            role_users = env["user"].search([
+                ("role_id", "=", role.id),
+                ("is_active", "=", True),
+            ])
+            for user in role_users or []:
+                user_id = getattr(user, "id", None)
+                if not user_id or user_id in seen_user_ids:
+                    continue
+                seen_user_ids.add(user_id)
+                users.append(user)
+
+        return users
+
+    def _notify_new_eco_created(self, db):
+        approvers = self.__class__._get_users_for_roles(db, ["approver"])
+        if not approvers:
+            return
+
+        subject_name = self.product_id.name if self.type == "product" and self.product_id else (
+            self.bom_id.name if self.type == "bom" and self.bom_id else self.name
+        )
+        self.notify_recordset(
+            users=approvers,
+            title="New ECO Created",
+            message=f"{self.name} was created for {subject_name}. Review and approval may be required.",
+            notification_type="info",
+            action=self._notification_action(),
+        )
+
+    def _notify_new_approval_assignment(self, user):
+        user_id = getattr(user, "id", None)
+        if not user_id:
+            return
+
+        stage_name = self.stage_id.name if self.stage_id else "Approval"
+        self.notify_users(
+            user_ids=[user_id],
+            title="ECO Approval Assigned",
+            message=f"You have been assigned to approve {self.name} in stage {stage_name}.",
+            notification_type="warning",
+            action=self._notification_action(),
+        )
+
+    def _notify_last_stage_completion(self, db):
+        recipients = self.__class__._get_users_for_roles(db, ["admin", "approver"])
+        recipient_ids = {user.id for user in recipients if getattr(user, "id", None)}
+
+        creator = self.initiated_by_id
+        creator_id = getattr(creator, "id", None)
+        if creator_id and creator_id not in recipient_ids:
+            recipients.append(creator)
+
+        if not recipients:
+            return
+
+        stage_name = self.stage_id.name if self.stage_id else "Final Stage"
+        self.notify_recordset(
+            users=recipients,
+            title="ECO Reached Final Stage",
+            message=f"{self.name} has moved to the final stage {stage_name}.",
+            notification_type="success",
+            action=self._notification_action(),
+        )
 
     def _update_stage_movement_state(self, db):
         stage = self.stage_id
@@ -952,6 +1049,7 @@ class Eco(ZnovaModel):
                 self._activate_product_version_from_eco(db)
             elif self.type == "bom":
                 self._activate_bom_from_eco(db)
+            self._notify_last_stage_completion(db)
 
         return {
             "type": "ir.actions.client",
@@ -1271,6 +1369,7 @@ class Eco(ZnovaModel):
         record = super().create(db, vals)
         record._archive_current_product_version(db)
         record._sync_stage_approval_state(db)
+        record._notify_new_eco_created(db)
         db.commit()
         db.refresh(record)
         return record

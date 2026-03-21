@@ -40,10 +40,16 @@ def initialize_menus(menu_manager: 'MenuManager'):
         ]
     ))
 
+    menu_manager.add_item(eco_group, MenuItem(
+        "reporting", "Reporting", "/reporting",
+        "BarChart3", sequence=30,
+        groups=["admin", "engineering", "approver", "operations"]
+    ))
+
     # Settings (dropdown under ECO group)
     menu_manager.add_item(eco_group, MenuItem(
         "settings", "Settings", None,
-        "Settings", sequence=30,
+        "Settings", sequence=40,
         groups=["admin"],
         children=[
             MenuItem(
