@@ -26,7 +26,7 @@ from backend.services.auth_service import SECRET_KEY, ALGORITHM, get_current_use
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 # _parse_client_data is now moved to BaseModel._parse_values, so we can remove it.
 
@@ -45,6 +45,222 @@ router = APIRouter()
 @router.get("/ui/menu")
 def get_ui_menu(current_user = Depends(get_current_user)):
     return menu_manager.get_menu(user_role=current_user.role.name if current_user.role else None)
+
+@router.get("/reporting/overview")
+def get_reporting_overview(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    eco_cls = registry.get_model("plm.eco")
+    approval_cls = registry.get_model("plm.eco.approval")
+    product_version_cls = registry.get_model("product.version")
+    bom_cls = registry.get_model("mrp.bom")
+
+    if not all([eco_cls, approval_cls, product_version_cls, bom_cls]):
+        raise HTTPException(status_code=500, detail="Reporting models are not available")
+
+    eco_query = policy_engine.apply_domain_filter(db.query(eco_cls), current_user, "plm.eco")
+    eco_records = eco_query.all()
+    total_ecos = len(eco_records)
+
+    stage_counts = {}
+    stage_meta = {}
+    type_counts = {"product": 0, "bom": 0}
+    first_workflow_sequence = min([
+        getattr(getattr(eco, "stage_id", None), "sequence", 10**9)
+        for eco in eco_records
+        if getattr(eco, "stage_id", None)
+        and not getattr(eco.stage_id, "is_refused_stage", False)
+    ] or [10**9])
+
+    done_ecos = 0
+    refused_ecos = 0
+    draft_ecos = 0
+    in_progress_ecos = 0
+    created_last_7_days = 0
+    now = datetime.now(timezone.utc)
+
+    for eco in eco_records:
+        stage = getattr(eco, "stage_id", None)
+        stage_name = stage.name if stage else "Unassigned"
+        stage_counts[stage_name] = stage_counts.get(stage_name, 0) + 1
+        if stage_name not in stage_meta:
+            stage_meta[stage_name] = {
+                "sequence": getattr(stage, "sequence", 10**9),
+                "is_last": bool(getattr(stage, "is_last_stage", False)),
+                "is_refused": bool(getattr(stage, "is_refused_stage", False)),
+            }
+
+        eco_type = getattr(eco, "type", None)
+        if eco_type in type_counts:
+            type_counts[eco_type] += 1
+
+        if getattr(stage, "is_last_stage", False):
+            done_ecos += 1
+        elif getattr(stage, "is_refused_stage", False):
+            refused_ecos += 1
+        elif getattr(stage, "sequence", None) == first_workflow_sequence:
+            draft_ecos += 1
+        else:
+            in_progress_ecos += 1
+
+        created_at = getattr(eco, "created_at", None)
+        if created_at:
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            if (now - created_at).days < 7:
+                created_last_7_days += 1
+
+    recent_eco_records = (
+        policy_engine.apply_domain_filter(db.query(eco_cls), current_user, "plm.eco")
+        .order_by(eco_cls.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    recent_ecos = [
+        {
+            "id": eco.id,
+            "name": eco.name,
+            "type": eco.type,
+            "stage": eco.stage_id.name if getattr(eco, "stage_id", None) else None,
+            "initiator": eco.initiated_by_id.full_name if getattr(eco, "initiated_by_id", None) else None,
+            "created_at": eco.created_at.isoformat() if getattr(eco, "created_at", None) else None,
+            "path": f"/models/plm.eco/{eco.id}",
+        }
+        for eco in recent_eco_records
+    ]
+
+    approval_query = policy_engine.apply_domain_filter(db.query(approval_cls), current_user, "plm.eco.approval")
+    pending_approvals = (
+        approval_query
+        .filter(
+            approval_cls.approval_required == True,
+            approval_cls.approved == False
+        )
+        .all()
+    )
+
+    approval_workload = {}
+    for approval in pending_approvals:
+        user = getattr(approval, "user_id", None)
+        if not user or not getattr(user, "id", None):
+            continue
+
+        entry = approval_workload.setdefault(user.id, {
+            "user_id": user.id,
+            "user_name": user.full_name,
+            "pending_count": 0,
+        })
+        entry["pending_count"] += 1
+
+    workload_rows = sorted(
+        approval_workload.values(),
+        key=lambda item: (-item["pending_count"], item["user_name"] or "")
+    )
+
+    product_version_query = policy_engine.apply_domain_filter(
+        db.query(product_version_cls), current_user, "product.version"
+    )
+    bom_query = policy_engine.apply_domain_filter(
+        db.query(bom_cls), current_user, "mrp.bom"
+    )
+
+    eco_product_versions = product_version_query.filter(product_version_cls.eco_id != None).count()
+    eco_boms = bom_query.filter(bom_cls.eco_id != None).count()
+    completion_rate = round((done_ecos / total_ecos) * 100, 1) if total_ecos else 0.0
+    approval_pressure = round((len(pending_approvals) / total_ecos), 1) if total_ecos else 0.0
+
+    ordered_stage_rows = [
+        {
+            "stage": stage,
+            "count": count,
+            "percentage": round((count / total_ecos) * 100, 1) if total_ecos else 0.0,
+            "sequence": stage_meta.get(stage, {}).get("sequence", 10**9),
+            "is_last": stage_meta.get(stage, {}).get("is_last", False),
+            "is_refused": stage_meta.get(stage, {}).get("is_refused", False),
+        }
+        for stage, count in stage_counts.items()
+    ]
+    ordered_stage_rows.sort(key=lambda item: (item["sequence"], item["stage"]))
+
+    dominant_stage = ordered_stage_rows[0]["stage"] if ordered_stage_rows else "No ECOs"
+    if ordered_stage_rows:
+        dominant_stage = max(ordered_stage_rows, key=lambda item: item["count"])["stage"]
+
+    type_breakdown = [
+        {
+            "type": "Product ECOs",
+            "count": type_counts["product"],
+            "percentage": round((type_counts["product"] / total_ecos) * 100, 1) if total_ecos else 0.0,
+        },
+        {
+            "type": "BoM ECOs",
+            "count": type_counts["bom"],
+            "percentage": round((type_counts["bom"] / total_ecos) * 100, 1) if total_ecos else 0.0,
+        },
+    ]
+
+    top_approver = workload_rows[0] if workload_rows else None
+    insight_items = [
+        {
+            "label": "Dominant Stage",
+            "value": dominant_stage,
+            "tone": "info",
+        },
+        {
+            "label": "Weekly ECO Creation",
+            "value": f"{created_last_7_days} in the last 7 days",
+            "tone": "primary",
+        },
+        {
+            "label": "Approval Pressure",
+            "value": f"{approval_pressure} pending approvals per ECO",
+            "tone": "warning" if pending_approvals else "success",
+        },
+        {
+            "label": "Top Approval Load",
+            "value": f"{top_approver['user_name']} ({top_approver['pending_count']})" if top_approver else "No pending approvals",
+            "tone": "warning" if top_approver else "success",
+        },
+    ]
+
+    return {
+        "headline": {
+            "title": "Engineering Change Control",
+            "subtitle": "Live read-only reporting across ECO pipeline health, approvals, and revision impact.",
+            "total_ecos": total_ecos,
+            "completion_rate": completion_rate,
+            "pending_approvals": len(pending_approvals),
+            "created_last_7_days": created_last_7_days,
+            "dominant_stage": dominant_stage,
+        },
+        "kpis": {
+            "total_ecos": total_ecos,
+            "draft_ecos": draft_ecos,
+            "in_progress_ecos": in_progress_ecos,
+            "approval_stage_ecos": stage_counts.get("Approval", 0),
+            "done_ecos": done_ecos,
+            "refused_ecos": refused_ecos,
+            "pending_approvals": len(pending_approvals),
+        },
+        "stage_breakdown": ordered_stage_rows,
+        "type_breakdown": type_breakdown,
+        "impact": {
+            "eco_product_versions": eco_product_versions,
+            "eco_boms": eco_boms,
+            "product_share": round((eco_product_versions / max(eco_product_versions + eco_boms, 1)) * 100, 1),
+            "bom_share": round((eco_boms / max(eco_product_versions + eco_boms, 1)) * 100, 1),
+        },
+        "insights": insight_items,
+        "status_mix": [
+            {"label": "Draft", "count": draft_ecos, "tone": "info"},
+            {"label": "In Progress", "count": in_progress_ecos, "tone": "primary"},
+            {"label": "Done", "count": done_ecos, "tone": "success"},
+            {"label": "Refused", "count": refused_ecos, "tone": "danger"},
+        ],
+        "recent_ecos": recent_ecos,
+        "approval_workload": workload_rows,
+    }
 
 @router.get("/{model_name}/permissions")
 def get_model_permissions(
