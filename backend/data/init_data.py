@@ -113,4 +113,20 @@ RECORDS = {
         },
         "noupdate": True
     },
+    # ── Crons ──────────────────────────────────────────────────────────────────
+    "cron_eco_approval_reminder": {
+        "model": "cron",
+        "values": {
+            "name": "ECO Approval Reminder",
+            "code": "plm.eco.approval.reminder",
+            "model_name": "plm.eco.approval",
+            "function_name": "run_approval_reminders",
+            "interval_number": 4,
+            "interval_type": "hours",
+            "active": True,
+            "priority": 5,
+            "description": "Sends notifications to users with pending ECO approvals for the current stage."
+        },
+        "noupdate": True
+    },
 }

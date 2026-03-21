@@ -129,8 +129,17 @@ class Cron(ZnovaModel):
             
         return super().create(db, vals)
 
-    def write(self, db: Session, vals: dict, **kwargs):
+    def write(self, *args, **kwargs):
         """Override write to validate cron configuration"""
+        if len(args) == 2 and isinstance(args[0], Session):
+            db, vals = args
+        elif len(args) == 1 and isinstance(args[0], dict):
+            vals = args[0]
+            db = object_session(self)
+        else:
+            vals = kwargs.get('vals', {})
+            db = kwargs.get('db') or object_session(self)
+
         # Validate code format
         if 'code' in vals:
             code = vals['code']
@@ -151,7 +160,7 @@ class Cron(ZnovaModel):
             interval_type = vals.get('interval_type', self.interval_type)
             vals['next_call'] = self._calculate_next_call(interval_number, interval_type)
             
-        return super().write(db, vals, **kwargs)
+        return super().write(*args, **kwargs)
 
     @staticmethod
     def _calculate_next_call(interval_number: int, interval_type: str, base_time: datetime = None) -> datetime:
@@ -178,6 +187,7 @@ class Cron(ZnovaModel):
         if not self.active:
             raise UserError(f"Cron job '{self.code}' is not active")
             
+        execution_time = datetime.now()
         try:
             # Import the model dynamically
             # For strict Znova, models are in backend.models.{model_name}
@@ -260,7 +270,7 @@ class Cron(ZnovaModel):
             
             # Calculate next_call
             base_time = self.next_call if self.next_call else execution_time
-            self.write({
+            self.write(db, {
                 'last_call': execution_time,
                 'next_call': self._calculate_next_call(self.interval_number, self.interval_type, base_time)
             })
@@ -275,7 +285,7 @@ class Cron(ZnovaModel):
             
         except Exception as e:
             base_time = self.next_call if self.next_call else datetime.now()
-            self.write({
+            self.write(db, {
                 'next_call': self._calculate_next_call(self.interval_number, self.interval_type, base_time)
             })
             

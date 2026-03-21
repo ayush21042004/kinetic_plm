@@ -184,6 +184,32 @@ class BaseModel(Base):
             # Resolve user context in value
             value = resolve_value(value)
             
+            attr = None
+            if '.' in field:
+                parts = field.split('.')
+                # Support Many2one dot notation (e.g. role_id.name)
+                if len(parts) == 2:
+                    m2o_field, related_field_name = parts
+                    m2o_rel_name = cls._m2o_rel_map.get(m2o_field)
+                    if m2o_rel_name and hasattr(cls, m2o_rel_name):
+                        rel_attr = getattr(cls, m2o_rel_name)
+                        related_model = rel_attr.property.mapper.class_
+                        if hasattr(related_model, related_field_name):
+                            target_attr = getattr(related_model, related_field_name)
+                            
+                            # Handle operator and value
+                            if op == '=': return rel_attr.has(target_attr == value)
+                            elif op == '!=': return ~rel_attr.has(target_attr == value)
+                            elif op == 'in': return rel_attr.has(target_attr.in_(value))
+                            elif op == 'not in': return ~rel_attr.has(target_attr.in_(value))
+                            elif op == 'like': return rel_attr.has(target_attr.like(f"%{value}%"))
+                            elif op == 'ilike': return rel_attr.has(target_attr.ilike(f"%{value}%"))
+                            elif op == '>': return rel_attr.has(target_attr > value)
+                            elif op == '<': return rel_attr.has(target_attr < value)
+                            elif op == '>=': return rel_attr.has(target_attr >= value)
+                            elif op == '<=': return rel_attr.has(target_attr <= value)
+                return None
+            
             if not hasattr(cls, field):
                 return None
             attr = getattr(cls, field)

@@ -339,6 +339,48 @@ async def setup_notification_cleanup_task(
     logger.info(f"Notification cleanup task scheduled to run every {interval_hours} hours")
 
 
+    logger.info(f"Notification cleanup task scheduled to run every {interval_hours} hours")
+
+
+async def setup_database_cron_task(
+    interval_seconds: int = 60,
+    run_immediately: bool = True
+) -> None:
+    """
+    Set up the task that executes database-driven crons.
+    """
+    from backend.models.cron import Cron
+    from backend.core.database import SessionLocal
+    
+    def run_crons():
+        db = SessionLocal()
+        try:
+            logger.debug("Checking for due database crons...")
+            result = Cron.run_due_jobs(db)
+            if result.get('executed', 0) > 0:
+                logger.info(f"Executed {result['executed']} database crons")
+            db.commit()
+            return result
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error running database crons: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    # Add task to scheduler
+    scheduler = get_scheduler()
+    scheduler.add_task(
+        name="database_cron_runner",
+        func=run_crons,
+        interval_seconds=interval_seconds,
+        run_immediately=run_immediately,
+        enabled=True
+    )
+    
+    logger.info(f"Database cron runner scheduled to run every {interval_seconds} seconds")
+
+
 async def setup_default_background_tasks() -> None:
     """Set up default background tasks for the application"""
     
@@ -356,6 +398,12 @@ async def setup_default_background_tasks() -> None:
             'max_deletions_per_run': 10000, # Safety limit
             'detailed_logging': False       # Reduce log verbosity
         }
+    )
+    
+    # Set up global database cron runner (runs every 60 seconds)
+    await setup_database_cron_task(
+        interval_seconds=60,
+        run_immediately=True
     )
     
     logger.info("Default background tasks configured")

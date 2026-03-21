@@ -126,8 +126,8 @@
                 class="feed-item"
                 @click="goToEco(eco.path)"
               >
-                <div class="item-icon" :class="eco.type">
-                  <component :is="eco.type === 'BOM' ? Settings2 : Package" :size="16" />
+                <div class="item-icon" :class="eco.type.toLowerCase()">
+                  <component :is="eco.type.toLowerCase() === 'bom' ? Settings2 : Package" :size="16" />
                 </div>
                 <div class="item-body">
                   <div class="item-top">
@@ -233,14 +233,14 @@
         <div class="composition-grid">
           <div v-for="item in report.type_breakdown" :key="item.type" class="composition-card">
             <div class="comp-head">
-              <div class="comp-icon" :class="item.type">
-                <component :is="item.type === 'BOM' ? Settings2 : Package" :size="14" />
+              <div class="comp-icon" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'">
+                <component :is="item.type.toLowerCase().includes('bom') ? Settings2 : Package" :size="14" />
               </div>
-              <span class="comp-label">{{ item.type }} Changes</span>
+              <span class="comp-label">{{ item.type }}</span>
               <strong class="comp-count">{{ item.count }}</strong>
             </div>
             <div class="comp-track">
-              <div class="comp-fill" :class="item.type" :style="{ width: `${item.percentage}%` }" />
+              <div class="comp-fill" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'" :style="{ width: `${item.percentage}%` }" />
             </div>
             <span class="comp-footer">{{ item.percentage }}% of total volume</span>
           </div>
@@ -254,6 +254,7 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/core/api';
+import { useBreadcrumbs } from '@/composables/useBreadcrumbs';
 import { 
   ClipboardList, 
   Activity, 
@@ -289,6 +290,7 @@ interface ReportingOverview {
 }
 
 const router = useRouter();
+const { push: pushBc } = useBreadcrumbs();
 
 const report = ref<ReportingOverview>({
   headline: {
@@ -349,6 +351,7 @@ const formatDate = (value: string | null) => {
 
 const goToEco = (path: string) => {
   if (!path) return;
+  pushBc({ label: 'Reporting', path: '/reporting' });
   router.push(path);
 };
 
@@ -465,6 +468,7 @@ onMounted(() => {
       margin: 0.5rem 0;
       background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     .subtitle {
@@ -991,8 +995,8 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    &.PRODUCT { background: rgba(37, 99, 235, 0.1); color: var(--primary-color); }
-    &.BOM { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+    &.product { background: rgba(var(--primary-color-rgb, 37, 99, 235), 0.1); color: var(--primary-color); }
+    &.bom { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
   }
 
   .comp-label {
@@ -1016,8 +1020,8 @@ onMounted(() => {
 
   .comp-fill {
     height: 100%;
-    &.PRODUCT { background: var(--primary-color); }
-    &.BOM { background: #8b5cf6; }
+    &.product { background: var(--primary-color); }
+    &.bom { background: #8b5cf6; }
   }
 
   .comp-footer {

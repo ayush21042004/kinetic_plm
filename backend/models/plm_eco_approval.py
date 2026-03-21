@@ -30,6 +30,15 @@ class EcoApproval(ZnovaModel):
         help="Whether this approver has approved the ECO for this stage."
     )
 
+    @classmethod
+    def run_approval_reminders(cls, db):
+        """
+        Cron job: Send reminders for pending approvals.
+        """
+        from backend.services.approval_reminder_service import get_approval_reminder_service
+        service = get_approval_reminder_service(db)
+        return service.run_reminders()
+
     _role_permissions = {
         "admin":       {"create": True,  "read": True, "write": True,  "delete": True,  "domain": []},
         "engineering": {"create": False, "read": True, "write": False, "delete": False, "domain": []},

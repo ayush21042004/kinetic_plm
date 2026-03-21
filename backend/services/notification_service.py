@@ -479,4 +479,11 @@ def get_notification_service(db: Session, websocket_manager=None) -> Notificatio
     Returns:
         NotificationService instance
     """
+    if websocket_manager is None:
+        try:
+            from backend.core.websocket_manager import get_websocket_manager
+            websocket_manager = get_websocket_manager()
+        except (ImportError, AttributeError):
+            pass
+            
     return NotificationService(db, websocket_manager)
