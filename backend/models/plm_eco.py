@@ -1,5 +1,6 @@
 from backend.core.znova_model import ZnovaModel
 from backend.core import fields
+from backend.core.exceptions import UserError
 
 
 class Eco(ZnovaModel):
@@ -33,17 +34,19 @@ class Eco(ZnovaModel):
 
     description = fields.Text(label="Description", tracking=True)
     update_version = fields.Boolean(label="Update Version", default=True, tracking=True)
-    initiated_by_id = fields.Many2one("user", label="Initiated By", tracking=True)
+    initiated_by_id = fields.Many2one("user", label="Initiated By", default="current_user", tracking=True)
 
     # Shown in top form, hidden based on type
     product_id = fields.Many2one(
         "product.product", label="Product",
         invisible="[('type', '!=', 'product')]",
+        required="[('type', '=', 'product')]",
         tracking=True
     )
     bom_id = fields.Many2one(
         "mrp.bom", label="Target BoM",
         invisible="[('type', '!=', 'bom')]",
+        required="[('type', '=', 'bom')]",
         tracking=True
     )
 
@@ -109,7 +112,7 @@ class Eco(ZnovaModel):
                 },
                 {
                     "title": "Description",
-                    "fields": ["description", "update_version"]
+                    "fields": ["update_version", "description"]
                 }
             ],
             "tabs": [
@@ -140,3 +143,36 @@ class Eco(ZnovaModel):
             ]
         }
     }
+
+    @classmethod
+    def _validate_type_required(cls, vals: dict):
+        eco_type = vals.get("type")
+        if not eco_type:
+            return
+        if eco_type == "product" and not vals.get("product_id"):
+            raise UserError("Product is required for a Product ECO.")
+        if eco_type == "bom" and not vals.get("bom_id"):
+            raise UserError("Target BoM is required for a BoM ECO.")
+
+    @classmethod
+    def create(cls, db, vals: dict):
+        # Unwrap Many2one dicts
+        for f in ("product_id", "bom_id"):
+            if isinstance(vals.get(f), dict):
+                vals[f] = vals[f].get("id")
+        cls._validate_type_required(vals)
+        return super().create(db, vals)
+
+    def write(self, *args, **kwargs):
+        vals = args[1] if len(args) == 2 else (args[0] if args else kwargs)
+        for f in ("product_id", "bom_id"):
+            if isinstance(vals.get(f), dict):
+                vals[f] = vals[f].get("id")
+        # Merge with current values to validate the final state
+        merged = {
+            "type":       vals.get("type", self.type),
+            "product_id": vals.get("product_id", self.product_id.id if self.product_id else None),
+            "bom_id":     vals.get("bom_id", self.bom_id.id if self.bom_id else None),
+        }
+        self._validate_type_required(merged)
+        return super().write(*args, **kwargs)

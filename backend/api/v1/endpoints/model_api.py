@@ -96,11 +96,17 @@ def get_model_metadata(model_name: str, current_user = Depends(get_current_user)
     if not model_cls:
         raise ValidationError(f"Model '{model_name}' not found")
     
-    # Use the validated metadata instead of raw metadata
-    ui_metadata = model_cls.get_ui_metadata(user_role=current_user.role.name)
-    
     # Use policy_engine to filter metadata based on role
-    return policy_engine.get_visible_fields(current_user, model_cls)
+    result = policy_engine.get_visible_fields(current_user, model_cls)
+
+    # Resolve "current_user" sentinel default to the actual logged-in user id
+    print(f"[get_model_metadata] model={model_name}, current_user.id={current_user.id}")
+    for field_name, field_meta in result.get("fields", {}).items():
+        if field_meta.get("default") == "current_user":
+            print(f"[get_model_metadata] resolving 'current_user' default on field '{field_name}' -> {current_user.id}")
+            field_meta["default"] = current_user.id
+
+    return result
 
 @router.get("/meta/{model_name}/enhanced")
 def get_enhanced_metadata(model_name: str, current_user = Depends(get_current_user)):
@@ -117,6 +123,17 @@ def get_enhanced_metadata(model_name: str, current_user = Depends(get_current_us
     enhanced_metadata = model_cls.get_ui_metadata(user_role=current_user.role.name)
     domain_fields = model_cls.get_domain_fields()
     
+    # Resolve "current_user" sentinel default to the actual logged-in user id
+    print(f"[get_enhanced_metadata] model={model_name}, current_user.id={current_user.id}")
+    fields_meta = enhanced_metadata.get("fields", {})
+    for field_name, field_meta in fields_meta.items():
+        raw_default = field_meta.get("default")
+        if raw_default == "current_user":
+            print(f"[get_enhanced_metadata] resolving 'current_user' default on '{field_name}' -> {current_user.id}")
+            field_meta["default"] = current_user.id
+        else:
+            print(f"[get_enhanced_metadata] field='{field_name}' default={repr(raw_default)}")
+
     # Get search configuration
     search_config = getattr(model_cls, '_search_config', {})
     
@@ -186,7 +203,8 @@ def get_domain_fields(model_name: str, current_user = Depends(get_current_user))
 def get_model_defaults(
     model_name: str, 
     payload: dict,
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get default values for a model.
@@ -198,10 +216,33 @@ def get_model_defaults(
         
     fields_list = payload.get("fields", [])
     if not fields_list:
-        # Default to all fields defined in metadata
         fields_list = list(model_cls._ui_metadata.keys())
         
-    return model_cls.default_get(fields_list)
+    defaults = model_cls.default_get(fields_list)
+
+    # Resolve "current_user" sentinel and expand Many2one defaults to {id, display_name}
+    env = Environment(db, user_id=current_user.id)
+
+    for field_name, value in list(defaults.items()):
+        field_def = model_cls._field_definitions.get(field_name)
+        if not field_def:
+            continue
+        if value == "current_user":
+            value = current_user.id
+            defaults[field_name] = value
+        # Expand Many2one int default to {id, display_name}
+        if field_def.field_type == "many2one" and isinstance(value, int):
+            comodel = field_def.comodel_name
+            rel_cls = registry.get_model(comodel)
+            if rel_cls:
+                rec = rel_cls.browse(value, db=db)
+                if rec:
+                    name_field = getattr(rel_cls, "_name_field_", "name")
+                    display = getattr(rec, name_field, None) or str(value)
+                    defaults[field_name] = {"id": value, "display_name": display}
+
+    print(f"[default_get] model={model_name}, resolved defaults={defaults}")
+    return defaults
 
 @router.post("/{model_name}/onchange")
 def trigger_model_onchange(

@@ -11,10 +11,12 @@ class Bom(ZnovaModel):
     _description_ = "Bill of Materials"
 
     reference = fields.Char(label="Reference", required=True, size=100, tracking=True,
-                            help="e.g. BOM-001, BoM-v2")
+                            help="e.g. BOM-001, BoM-v2",
+                            readonly="[('state', 'in', ['active', 'archived'])]")
 
     product_version_id = fields.Many2one(
-        "product.version", label="Product", required=True, tracking=True
+        "product.version", label="Product", required=True, tracking=True,
+        readonly="[('state', 'in', ['active', 'archived'])]"
     )
     version = fields.Integer(label="BoM Version", required=True, default=1, tracking=True, readonly=True)
 
@@ -22,19 +24,20 @@ class Bom(ZnovaModel):
         ("draft",    "Draft"),
         ("active",   "Active"),
         ("archived", "Archived"),
-    ], label="State", default="draft", tracking=True, options={
+    ], label="State", default="draft", tracking=True, readonly=True, options={
         "draft":    {"label": "Draft",    "color": "info"},
         "active":   {"label": "Active",   "color": "success"},
         "archived": {"label": "Archived", "color": "secondary"},
     })
 
-    notes = fields.Text(label="Notes")
+    notes = fields.Text(label="Notes", readonly="[('state', 'in', ['active', 'archived'])]")
     eco_id = fields.Many2one("plm.eco", label="Source ECO", readonly=True)
 
     bom_line_ids = fields.One2many(
         "mrp.bom.line", "bom_id",
         label="Components",
-        columns=["component_product_id", "quantity", "notes"]
+        columns=["component_product_id", "quantity", "notes"],
+        readonly="[('state', 'in', ['active', 'archived'])]"
     )
     eco_count = fields.Integer(label="ECO", compute="_compute_eco_count", store=True)
 
@@ -64,6 +67,29 @@ class Bom(ZnovaModel):
         },
         "form": {
             "show_audit_log": True,
+            "header_buttons": [
+                {
+                    "name": "set_active",
+                    "label": "Set Active",
+                    "type": "primary",
+                    "method": "action_set_active",
+                    "invisible": "[('state', '=', 'active')]"
+                },
+                {
+                    "name": "set_archived",
+                    "label": "Archive",
+                    "type": "secondary",
+                    "method": "action_set_archived",
+                    "invisible": "[('state', '=', 'archived')]"
+                },
+                {
+                    "name": "reset_draft",
+                    "label": "Reset to Draft",
+                    "type": "warning",
+                    "method": "action_reset_draft",
+                    "invisible": "[('state', '=', 'draft')]"
+                }
+            ],
             "smart_buttons": [
                 {
                     "name": "eco",
@@ -99,6 +125,45 @@ class Bom(ZnovaModel):
     @api.depends("eco_id")
     def _compute_eco_count(self):
         self.eco_count = 1 if self.eco_id else 0
+
+    def action_set_active(self):
+        self.write({"state": "active"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "BoM Activated",
+                "message": f"'{self.reference}' is now Active.",
+                "type": "success",
+                "refresh": True
+            }
+        }
+
+    def action_set_archived(self):
+        self.write({"state": "archived"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "BoM Archived",
+                "message": f"'{self.reference}' has been Archived.",
+                "type": "warning",
+                "refresh": True
+            }
+        }
+
+    def action_reset_draft(self):
+        self.write({"state": "draft"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Reset to Draft",
+                "message": f"'{self.reference}' has been reset to Draft.",
+                "type": "info",
+                "refresh": True
+            }
+        }
 
     def action_view_eco(self):
         if not self.eco_id:

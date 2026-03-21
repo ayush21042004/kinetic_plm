@@ -49,6 +49,7 @@ export function useForm(modelName: string, id?: number) {
                     if (!(key in formData)) {
                         // Set default values from metadata
                         const fieldMeta = metadata.value.fields[key];
+                        console.log(`[useForm] field='${key}' default=`, fieldMeta.default);
                         if (fieldMeta.default !== undefined) {
                             // Special handling for sequence fields:
                             // If it's a readonly field with default "New", only set it for display

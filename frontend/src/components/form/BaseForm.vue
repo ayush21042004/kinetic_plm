@@ -313,7 +313,7 @@
                 </label>
                 <div class="field-wrapper" :style="{ minHeight: touchTargetSize.minHeight }">
                   <!-- Show as display value when readonly for simple fields only (NOT many2one - it needs to be clickable) -->
-                  <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one'].includes(allFields[key]?.type)" class="view-value">
+                  <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one', 'attachment', 'attachments'].includes(allFields[key]?.type)" class="view-value">
                     {{ formatValue(formData[key], allFields[key]?.type, allFields[key]) }}
                   </div>
                   <!-- Show as editable field when not readonly OR for complex fields that need proper rendering -->
@@ -457,7 +457,7 @@
                   </label>
                   <div class="field-wrapper" :style="{ minHeight: touchTargetSize.minHeight }">
                     <!-- Show as display value when readonly for simple fields only (NOT many2one - it needs to be clickable) -->
-                    <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one'].includes(allFields[key]?.type)" class="view-value">
+                    <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one', 'attachment', 'attachments'].includes(allFields[key]?.type)" class="view-value">
                       {{ formatValue(formData[key], allFields[key]?.type, allFields[key]) }}
                     </div>
                     <!-- Show as editable field when not readonly OR for complex fields that need proper rendering -->
@@ -575,7 +575,7 @@
                   class="sidebar-field-item"
                 >
                   <!-- Show as display value when readonly for simple fields only (NOT many2one - it needs to be clickable) -->
-                  <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one'].includes(allFields[key]?.type)" class="view-value">
+                  <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one', 'attachment', 'attachments'].includes(allFields[key]?.type)" class="view-value">
                     {{ formatValue(formData[key], allFields[key]?.type, allFields[key]) }}
                   </div>
                   <!-- Show as editable field when not readonly OR for complex fields that need proper rendering -->
@@ -644,7 +644,7 @@
                             </label>
                             <div :class="[allFields[key]?.type === 'text' ? 'full-field-text' : 'field-wrapper']" :style="{ minHeight: touchTargetSize.minHeight }">
                               <!-- Show as display value when readonly for simple fields only (NOT many2one - it needs to be clickable) -->
-                              <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one'].includes(allFields[key]?.type)" class="view-value">
+                              <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one', 'attachment', 'attachments'].includes(allFields[key]?.type)" class="view-value">
                                 {{ formatValue(formData[key], allFields[key]?.type, allFields[key]) }}
                               </div>
                               <!-- Show as editable field when not readonly OR for complex fields that need proper rendering -->
@@ -803,7 +803,7 @@
 
                   <div :class="[allFields[key]?.type === 'text' ? 'full-field-text' : 'field-wrapper']" :style="{ minHeight: touchTargetSize.minHeight }">
                     <!-- Show as display value when readonly for simple fields only (NOT many2one - it needs to be clickable) -->
-                    <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one'].includes(allFields[key]?.type)" class="view-value">
+                    <div v-if="(isFieldReadonly(key) || actionPermissions.makeFieldsReadonly) && !['one2many', 'many2many', 'many2one', 'attachment', 'attachments'].includes(allFields[key]?.type)" class="view-value">
                       {{ formatValue(formData[key], allFields[key]?.type, allFields[key]) }}
                     </div>
                     <!-- Show as editable field when not readonly OR for complex fields that need proper rendering -->

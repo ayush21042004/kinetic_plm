@@ -9,26 +9,32 @@ class Version(ZnovaModel):
     _description_ = "Product Version"
 
     product_id = fields.Many2one(
-        "product.product", label="Product", tracking=True
+        "product.product", label="Product", tracking=True,
+        readonly="[('state', 'in', ['active', 'archived'])]"
     )
     version = fields.Integer(label="Version Number", required=True, default=1, tracking=True, readonly=True)
     name = fields.Char(label="Product Name", required=True, size=200, tracking=True,
-                       help="e.g. v1.0, v2.1-stable")
-    default_code = fields.Char(label="Internal Reference", size=100, tracking=True)
-    description = fields.Text(label="Change Notes")
+                       help="e.g. v1.0, v2.1-stable",
+                       readonly="[('state', 'in', ['active', 'archived'])]")
+    default_code = fields.Char(label="Internal Reference", size=100, tracking=True,
+                               readonly="[('state', 'in', ['active', 'archived'])]")
+    description = fields.Text(label="Change Notes",
+                              readonly="[('state', 'in', ['active', 'archived'])]")
 
     state = fields.Selection([
         ("draft",    "Draft"),
         ("active",   "Active"),
         ("archived", "Archived"),
-    ], label="State", default="draft", tracking=True, options={
+    ], label="State", default="draft", tracking=True, readonly=True, options={
         "draft":    {"label": "Draft",    "color": "info"},
         "active":   {"label": "Active",   "color": "success"},
         "archived": {"label": "Archived", "color": "secondary"},
     })
 
-    sale_price = fields.Integer(label="Sale Price", default=0, tracking=True)
-    cost_price = fields.Integer(label="Cost Price", default=0, tracking=True)
+    sale_price = fields.Integer(label="Sale Price", default=0, tracking=True,
+                                readonly="[('state', 'in', ['active', 'archived'])]")
+    cost_price = fields.Integer(label="Cost Price", default=0, tracking=True,
+                                readonly="[('state', 'in', ['active', 'archived'])]")
 
     bom_id = fields.Many2one("mrp.bom", label="Bill of Materials", readonly=True)
     eco_id = fields.Many2one("plm.eco", label="Source ECO", readonly=True)
@@ -36,7 +42,8 @@ class Version(ZnovaModel):
     attachments = fields.Attachments(
         label="Attachments",
         allowed_types=["pdf", "doc", "docx", "png", "jpg", "jpeg", "xlsx", "csv"],
-        max_size=10485760
+        max_size=10485760,
+        readonly="[('state', 'in', ['active', 'archived'])]"
     )
 
     bom_count = fields.Integer(label="BoM", compute="_compute_bom_count", store=True)
@@ -68,6 +75,29 @@ class Version(ZnovaModel):
         },
         "form": {
             "show_audit_log": True,
+            "header_buttons": [
+                {
+                    "name": "set_active",
+                    "label": "Set Active",
+                    "type": "primary",
+                    "method": "action_set_active",
+                    "invisible": "[('state', '=', 'active')]"
+                },
+                {
+                    "name": "set_archived",
+                    "label": "Archive",
+                    "type": "secondary",
+                    "method": "action_set_archived",
+                    "invisible": "[('state', '=', 'archived')]"
+                },
+                {
+                    "name": "reset_draft",
+                    "label": "Reset to Draft",
+                    "type": "warning",
+                    "method": "action_reset_draft",
+                    "invisible": "[('state', '=', 'draft')]"
+                }
+            ],
             "smart_buttons": [
                 {
                     "name": "bom",
@@ -176,4 +206,43 @@ class Version(ZnovaModel):
             "view_mode": "form",
             "res_id": self.eco_id.id,
             "name": f"ECO for {self.name}"
+        }
+
+    def action_set_active(self):
+        self.write({"state": "active"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Version Activated",
+                "message": f"'{self.name}' is now Active.",
+                "type": "success",
+                "refresh": True
+            }
+        }
+
+    def action_set_archived(self):
+        self.write({"state": "archived"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Version Archived",
+                "message": f"'{self.name}' has been Archived.",
+                "type": "warning",
+                "refresh": True
+            }
+        }
+
+    def action_reset_draft(self):
+        self.write({"state": "draft"})
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Reset to Draft",
+                "message": f"'{self.name}' has been reset to Draft.",
+                "type": "info",
+                "refresh": True
+            }
         }
