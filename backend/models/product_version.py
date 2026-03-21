@@ -49,6 +49,7 @@ class Version(ZnovaModel):
     bom_count = fields.Integer(label="BoM", compute="_compute_bom_count", store=True)
     eco_count = fields.Integer(label="ECO", compute="_compute_eco_count", store=True)
     comparison_count = fields.Integer(label="Compare", compute="_compute_comparison_count", store=False)
+    used_in_bom_count = fields.Integer(label="Used In BoMs", compute="_compute_used_in_bom_count", store=False)
 
     _role_permissions = {
         "admin":       {"create": True,  "read": True, "write": True,  "delete": True,  "domain": []},
@@ -123,6 +124,14 @@ class Version(ZnovaModel):
                     "field": "comparison_count",
                     "method": "action_open_comparison",
                     "invisible": "[('comparison_count', '=', 0)]"
+                },
+                {
+                    "name": "used_in_boms",
+                    "label": "Used In BoMs",
+                    "icon": "Link",
+                    "field": "used_in_bom_count",
+                    "method": "action_view_used_in_boms",
+                    "invisible": "[('used_in_bom_count', '=', 0)]"
                 }
             ],
             "groups": [
@@ -194,6 +203,57 @@ class Version(ZnovaModel):
     @api.depends("eco_id")
     def _compute_eco_count(self):
         self.eco_count = 1 if self.eco_id else 0
+
+    def _compute_used_in_bom_count(self):
+        db = self._get_db()
+        if not db:
+            self.used_in_bom_count = 0
+            return
+        from backend.core.base_model import Environment
+        env = Environment(db)
+        
+        # Find unique BOM IDs where this version is a component
+        bom_lines = env["mrp.bom.line"].search([("component_product_id", "=", self.id)])
+        bom_ids = set(line._raw_id('bom_id') for line in bom_lines if line._raw_id('bom_id'))
+        self.used_in_bom_count = len(bom_ids)
+
+    def action_view_used_in_boms(self):
+        db = self._get_db()
+        if not db:
+            return {}
+        from backend.core.base_model import Environment
+        env = Environment(db)
+        
+        bom_lines = env["mrp.bom.line"].search([("component_product_id", "=", self.id)])
+        bom_ids = list(set(line._raw_id('bom_id') for line in bom_lines if line._raw_id('bom_id')))
+        
+        if not bom_ids:
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "title": "No BoMs Found",
+                    "message": "This version is not used as a component in any Bill of Materials.",
+                    "type": "info"
+                }
+            }
+
+        if len(bom_ids) == 1:
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "mrp.bom",
+                "view_mode": "form",
+                "res_id": bom_ids[0],
+                "name": f"BoM for {self.name}"
+            }
+        else:
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "mrp.bom",
+                "view_mode": "list,form",
+                "domain": [("id", "in", bom_ids)],
+                "name": f"BoMs using {self.name}"
+            }
 
     @api.depends("product_id")
     def _compute_comparison_count(self):
