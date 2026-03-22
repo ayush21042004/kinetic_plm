@@ -24,9 +24,9 @@ class IrAttachment(ZnovaModel):
     
     _role_permissions = {
         "admin": {"create": True, "read": True, "write": True, "delete": True},
-        "manager": {"create": True, "read": True, "write": True, "delete": True},
-        "player": {"create": True, "read": True, "write": False, "delete": False},
-        "scorer": {"create": True, "read": True, "write": True, "delete": True}
+        "engineering": {"create": True, "read": True, "write": True, "delete": True},
+        "approver": {"create": True, "read": True, "write": True, "delete": True},
+        "operations": {"create": True, "read": True, "write": True, "delete": True},
     }
 
     @api.depends('datas')

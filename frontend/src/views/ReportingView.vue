@@ -119,7 +119,7 @@
               <p>Handled engineering changes and system updates.</p>
             </header>
 
-            <div v-if="report.recent_ecos.length" class="activity-feed">
+            <div v-if="report.recent_ecos.length" class="activity-feed dark-scrollbar">
               <button
                 v-for="eco in report.recent_ecos"
                 :key="eco.id"
@@ -141,6 +141,34 @@
                   </div>
                 </div>
               </button>
+            </div>
+            <div v-else class="empty-mini">No recent ECO activity.</div>
+          </section>
+
+          <!-- ECO Type Composition (Moved inside stack) -->
+          <section class="glass-panel mix-section">
+            <header class="panel-header">
+              <div class="title-group">
+                <BarChart3 :size="18" class="header-icon" />
+                <h2>ECO Type Composition</h2>
+              </div>
+              <p>Distribution across different engineering change categories.</p>
+            </header>
+
+            <div class="composition-grid">
+              <div v-for="item in report.type_breakdown" :key="item.type" class="composition-card">
+                <div class="comp-head">
+                  <div class="comp-icon" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'">
+                    <component :is="item.type.toLowerCase().includes('bom') ? Settings2 : Package" :size="14" />
+                  </div>
+                  <span class="comp-label">{{ item.type }}</span>
+                  <strong class="comp-count">{{ item.count }}</strong>
+                </div>
+                <div class="comp-track">
+                  <div class="comp-fill" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'" :style="{ width: `${item.percentage}%` }" />
+                </div>
+                <span class="comp-footer">{{ item.percentage }}% of total volume</span>
+              </div>
             </div>
           </section>
         </main>
@@ -164,7 +192,7 @@
           </article>
 
           <!-- Output Metrics -->
-          <article class="glass-panel">
+          <article class="glass-panel output-panel">
             <header class="panel-header compact">
               <div class="title-group">
                 <ClipboardList :size="18" class="header-icon" />
@@ -197,9 +225,8 @@
               </div>
             </div>
           </article>
-
           <!-- Workload Section -->
-          <article class="glass-panel">
+          <article class="glass-panel load-panel">
             <header class="panel-header compact">
               <div class="title-group">
                 <Users :size="18" class="header-icon" />
@@ -219,33 +246,8 @@
             <p v-else class="empty-mini">Zero pending assignments.</p>
           </article>
         </aside>
+      <!-- Grid Ends -->
       </div>
-
-      <section class="glass-panel mix-section">
-        <header class="panel-header">
-          <div class="title-group">
-            <BarChart3 :size="18" class="header-icon" />
-            <h2>ECO Type Composition</h2>
-          </div>
-          <p>Distribution across different engineering change categories.</p>
-        </header>
-
-        <div class="composition-grid">
-          <div v-for="item in report.type_breakdown" :key="item.type" class="composition-card">
-            <div class="comp-head">
-              <div class="comp-icon" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'">
-                <component :is="item.type.toLowerCase().includes('bom') ? Settings2 : Package" :size="14" />
-              </div>
-              <span class="comp-label">{{ item.type }}</span>
-              <strong class="comp-count">{{ item.count }}</strong>
-            </div>
-            <div class="comp-track">
-              <div class="comp-fill" :class="item.type.toLowerCase().includes('bom') ? 'bom' : 'product'" :style="{ width: `${item.percentage}%` }" />
-            </div>
-            <span class="comp-footer">{{ item.percentage }}% of total volume</span>
-          </div>
-        </div>
-      </section>
     </template>
   </section>
 </template>
@@ -622,6 +624,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  height: 100%;
 }
 
 // Global Panel Styles
@@ -743,11 +746,34 @@ onMounted(() => {
   }
 }
 
-// Activity Feed
+.load-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.output-panel {
+  // Let it be natural
+}
+
+.recent-panel {
+  // Let it be natural
+}
+
+.mix-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .activity-feed {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  max-height: 600px;
 }
 
 .feed-item {

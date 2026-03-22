@@ -3,6 +3,7 @@
     <div class="view-content-root" v-if="viewMode">
       <div v-if="viewMode === 'list'">
         <BaseList 
+          v-if="viewType === 'list'"
           :title="title" 
           :items="listItems" 
           :totalCount="listTotal"
@@ -18,6 +19,7 @@
           :grouped-results="listGroupedResults"
           :active-group-by="listCurrentGroupBy"
           :model-name="model"
+          :view-type="viewType"
           @view="handleView"
           @create="handleCreate"
           @search="handleSearch"
@@ -27,6 +29,31 @@
           @refresh="refreshList"
           @breadcrumb-click="(bc, idx) => handleBreadcrumbClick(bc, idx)"
           @bulk-delete="handleBulkDeleteRequest"
+          @update:view-type="toggleViewType"
+        />
+        <BaseKanban
+          v-else-if="viewType === 'kanban'"
+          :model-name="model"
+          :items="listItems"
+          :metadata="listMetadata"
+          :loading="listLoading"
+          :error="listError"
+          :grouped-results="listGroupedResults"
+          :active-group-by="listCurrentGroupBy"
+          :total-count="listTotal"
+          :offset="currentOffset"
+          :limit="pageSize"
+          :current-search="currentSearch"
+          :active-filters="currentFilters"
+          :view-type="viewType"
+          @view="handleView"
+          @create="handleCreate"
+          @search="handleSearch"
+          @filter="handleFilter"
+          @group-by="handleGroupBy"
+          @paginate="handlePaginate"
+          @clear-all="handleClearAll"
+          @update:view-type="toggleViewType"
         />
       </div>
       <div v-else-if="viewMode === 'form' && (formLoading || formMetadata)" class="detail-container">
@@ -82,6 +109,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useList } from '../composables/useList';
 import { useForm } from '../composables/useForm';
 import BaseList from '../components/list/BaseList.vue';
+import BaseKanban from '../components/kanban/BaseKanban.vue';
 import BaseForm from '../components/form/BaseForm.vue';
 import ConfirmationDialog from '../components/common/ConfirmationDialog.vue';
 import api from '../core/api';
@@ -103,8 +131,14 @@ const props = defineProps<{
 const router = useRouter();
 const route = useRoute();
 const viewMode = ref<'list' | 'form' | null>(null);
-const currentIndex = ref(0);
+// View Switch Mode (List vs Kanban)
+const viewType = ref<'list' | 'kanban'>('list');
 
+const toggleViewType = (newType: 'list' | 'kanban') => {
+  viewType.value = newType;
+};
+
+const currentIndex = ref(0);
 const currentSearch = ref('');
 const currentSearchField = ref('');
 const currentDomain = ref('');
@@ -878,7 +912,16 @@ const executeBulkDelete = async (ids: number[]) => {
     }
 };
 
-onMounted(() => {
+const handleClearAll = () => {
+  currentSearch.value = '';
+  currentFilters.value = [];
+  currentGroupBy.value = '';
+  handleSearch({ query: '', field: '' });
+  handleFilter([]);
+  handleGroupBy('');
+};
+
+onMounted(async () => {
   init();
 });
 

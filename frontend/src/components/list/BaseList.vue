@@ -80,17 +80,6 @@
           <span>Delete ({{ selectedIds.length }})</span>
         </button>
 
-        <!-- View Tabs (Hidden for now, as requested) -->
-        <div class="view-tabs" style="display: none;">
-          <button class="view-tab active">
-            <LayoutList class="icon-xs" />
-            <span>List</span>
-          </button>
-          <button class="view-tab">
-            <LayoutGrid class="icon-xs" />
-            <span>Kanban</span>
-          </button>
-        </div>
       </div>
       
       <div class="action-bar-center">
@@ -107,6 +96,26 @@
       </div>
  
       <div class="action-bar-right">
+        <!-- View Toggle Buttons -->
+        <div class="view-toggle-buttons">
+          <button 
+            class="view-toggle-btn" 
+            :class="{ active: viewType === 'list' }"
+            @click="$emit('update:view-type', 'list')"
+            title="List View"
+          >
+            <LayoutList class="icon-xs" />
+          </button>
+          <button 
+            class="view-toggle-btn" 
+            :class="{ active: viewType === 'kanban' }"
+            @click="$emit('update:view-type', 'kanban')"
+            title="Kanban View"
+          >
+            <LayoutGrid class="icon-xs" />
+          </button>
+        </div>
+
         <div class="pager-wrapper" v-if="totalCount">
           <div class="nav-arrows">
             <button class="nav-arrow" @click="prevPage" :disabled="offset === 0" title="Previous Page">
@@ -282,10 +291,12 @@ const props = defineProps<{
   breadcrumbs: any[];
   groupedResults?: any[];
   activeGroupBy?: string;
+  activeGroupBy?: string;
   modelName?: string; // Add modelName prop for permissions
+  viewType?: 'list' | 'kanban';
 }>();
 
-const emit = defineEmits(['view', 'create', 'refresh', 'search', 'paginate', 'breadcrumb-click', 'filter', 'group-by', 'bulk-delete']);
+const emit = defineEmits(['view', 'create', 'refresh', 'search', 'paginate', 'breadcrumb-click', 'filter', 'group-by', 'bulk-delete', 'update:view-type']);
 
 // Initialize responsive composable
 const { isMobile, isTablet, isDesktop, isTouchDevice, getEssentialColumns, touchTargetSize } = useResponsive();
@@ -898,6 +909,41 @@ const getColumnStyle = (field: any) => {
   align-items: center;
   justify-content: center;
   max-width: 600px;
+}
+
+// View Toggle Styles
+.view-toggle-buttons {
+  display: flex;
+  background: v.$bg-tertiary;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid v.$border-color;
+  margin-right: 1rem;
+}
+
+.view-toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: v.$text-secondary;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+
+  &:hover {
+    color: v.$text-primary;
+    background: rgba(v.$primary-color, 0.1);
+  }
+
+  &.active {
+    background: color-mix(in srgb, v.$primary-color 16%, v.$bg-secondary);
+    color: v.$primary-color;
+    border-color: color-mix(in srgb, v.$primary-color 45%, v.$border-color);
+    box-shadow: 0 0 0 1px color-mix(in srgb, v.$primary-color 12%, transparent);
+  }
 }
 
 .action-bar-right {

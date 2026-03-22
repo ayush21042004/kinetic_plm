@@ -1,14 +1,13 @@
 import os
 import requests
-import json
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
 class AiService:
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY", "AIzaSyBL_iGBzaDEwXfj4BQco7RYicZGSyUI8Qc")
+        self.api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
         self.model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         
         # Increase timeout to 30s as default, and ensure a minimum of 10s for generation
@@ -21,15 +20,24 @@ class AiService:
             logger.warning(f"Gemini timeout {self.timeout}s is too low for generation. Increasing to 30s.")
             self.timeout = 30
 
-        # Using v1beta for gemini-2.5-flash as it's often more accessible for experimental models
-        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        self.api_url = None
+        if self.api_key:
+            # Using v1beta for gemini-2.5-flash as it's often more accessible for experimental models
+            self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+            logger.info(
+                "Gemini AI service configured with model '%s' and API key suffix '%s'",
+                self.model,
+                self._masked_key_suffix(),
+            )
+        else:
+            logger.warning("Gemini AI service disabled: GEMINI_API_KEY is missing or empty.")
 
     def generate_impact_analysis(self, eco_data: Dict[str, Any]) -> str:
         """
         Generate an impact analysis for an ECO using Gemini.
         """
-        if not self.api_key:
-            return "AI Analysis skipped: No API key provided."
+        if not self.api_key or not self.api_url:
+            return "AI Analysis skipped: GEMINI_API_KEY is not configured."
 
         prompt = self._build_prompt(eco_data)
         
@@ -42,7 +50,11 @@ class AiService:
         }
 
         try:
-            logger.info(f"Calling Gemini API for impact analysis: {self.model}")
+            logger.info(
+                "Calling Gemini API for impact analysis with model '%s' and key suffix '%s'",
+                self.model,
+                self._masked_key_suffix(),
+            )
             response = requests.post(
                 self.api_url,
                 json=payload,
@@ -61,12 +73,32 @@ class AiService:
             
             return "AI Analysis failed: Unexpected response format from Gemini."
             
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else "unknown"
+            response_body = e.response.text if e.response is not None else ""
+            logger.error("Gemini API HTTP error %s: %s", status_code, response_body)
+
+            if status_code == 403:
+                return (
+                    "AI Analysis failed: Gemini returned 403 Forbidden. "
+                    "Check GEMINI_API_KEY, API restrictions, enabled APIs, model access, and billing. "
+                    f"Response: {response_body}"
+                )
+
+            return f"AI Analysis failed: Gemini HTTP {status_code}. Response: {response_body}"
+        except requests.exceptions.RequestException as e:
+            logger.error("Gemini API request failed: %s", e)
+            return f"AI Analysis failed: Request error while contacting Gemini: {str(e)}"
         except Exception as e:
-            logger.error(f"Gemini API call failed: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                 logger_msg = f"API Error Response: {e.response.text}"
-                 logger.error(logger_msg)
-            return f"AI Analysis failed: {str(e)}"
+            logger.error("Gemini API unexpected failure: %s", e)
+            return f"AI Analysis failed: Unexpected error: {str(e)}"
+
+    def _masked_key_suffix(self) -> str:
+        if not self.api_key:
+            return "missing"
+        if len(self.api_key) <= 4:
+            return self.api_key
+        return self.api_key[-4:]
 
     def _build_prompt(self, eco_data: Dict[str, Any]) -> str:
         """Construct the prompt for Gemini."""

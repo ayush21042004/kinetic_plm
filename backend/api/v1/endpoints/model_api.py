@@ -167,7 +167,7 @@ def get_reporting_overview(
     recent_eco_records = (
         policy_engine.apply_domain_filter(db.query(eco_cls), current_user, "plm.eco")
         .order_by(eco_cls.created_at.desc())
-        .limit(8)
+        .limit(15)
         .all()
     )
     recent_ecos = [

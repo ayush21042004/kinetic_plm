@@ -31,7 +31,20 @@ class EcoStageLine(ZnovaModel):
         "operations":  {"create": False, "read": True, "write": False, "delete": False, "domain": []},
     }
 
+    @staticmethod
+    def _extract_many2one_id(value):
+        if value is None or value is False:
+            return None
+        if isinstance(value, dict):
+            return value.get("id")
+        if hasattr(value, "id"):
+            return value.id
+        return value
+
     def _check_duplicate_approver(self, db, stage_id, user_id):
+        stage_id = self._extract_many2one_id(stage_id)
+        user_id = self._extract_many2one_id(user_id)
+
         if not stage_id or not user_id:
             return
         
@@ -63,8 +76,8 @@ class EcoStageLine(ZnovaModel):
         
         if 'user_id' in vals or 'stage_id' in vals:
             # Use current values as fallback if not being updated
-            new_user_id = vals.get('user_id', self.user_id)
-            new_stage_id = vals.get('stage_id', self.stage_id)
+            new_user_id = vals.get('user_id', self._raw_id('user_id'))
+            new_stage_id = vals.get('stage_id', self._raw_id('stage_id'))
             self._check_duplicate_approver(db, new_stage_id, new_user_id)
             
         return super().write(*args, **kwargs)

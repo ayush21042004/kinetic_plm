@@ -398,16 +398,16 @@ RECORDS = {
         }
     },
 
-    # Lines for BOM-RAU-001 (Robotic Arm Unit)
-    "demo_bom_line_arm_controller": {
-        "model": "mrp.bom.line",
-        "values": {
-            "bom_id": "@demo_bom_arm",
-            "component_product_id": "@demo_version_controller_v1",
-            "quantity": 1,
-            "notes": "Main controller board",
-        }
-    },
+    # # Lines for BOM-RAU-001 (Robotic Arm Unit)
+    # "demo_bom_line_arm_controller": {
+    #     "model": "mrp.bom.line",
+    #     "values": {
+    #         "bom_id": "@demo_bom_arm",
+    #         "component_product_id": "@demo_version_controller_v1",
+    #         "quantity": 1,
+    #         "notes": "Main controller board",
+    #     }
+    # },
     "demo_bom_line_arm_motor": {
         "model": "mrp.bom.line",
         "values": {
