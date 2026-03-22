@@ -26,6 +26,13 @@ try:
 except ImportError:
     pass
 
+
+def clear_runtime_processes():
+    """Stop any existing frontend/backend dev servers before DB reset."""
+    print("Stopping processes on ports 8000 and 3000...")
+    subprocess.run("fuser -k 8000/tcp 3000/tcp || true", shell=True, check=False)
+    time.sleep(1)
+
 def setup_fresh_db():
     from sqlalchemy import create_engine, text
     from sqlalchemy.engine import url
@@ -101,19 +108,13 @@ def start_server():
     python_exe = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
     print(f"Using python: {python_exe}")
     
-    # Clean up ports before starting
-    print("Clearing ports 8000 and 3000...")
-    subprocess.run("fuser -k 8000/tcp 3000/tcp || true", shell=True)
-    time.sleep(1)
-    
     # Run uvicorn
     try:
         subprocess.run([
             python_exe, "-m", "uvicorn", 
             "backend.main:app", 
             "--host", "0.0.0.0", 
-            "--port", "8000", 
-            "--reload"
+            "--port", "8000"
         ], check=True)
     except KeyboardInterrupt:
         print("\nServer stopped by user")
@@ -131,6 +132,7 @@ if __name__ == "__main__":
         print("--- Demo data loading ENABLED ---")
 
     try:
+        clear_runtime_processes()
         setup_fresh_db()
         clean_migrations()
         create_initial_migration()

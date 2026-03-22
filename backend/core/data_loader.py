@@ -3,6 +3,7 @@ import importlib.util
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError, ProgrammingError, DBAPIError, SQLAlchemyError
 from backend.core.base_model import Environment
 from backend.services.auth_service import get_password_hash
 from backend.core.registry import registry
@@ -19,6 +20,41 @@ class DataLoader:
         self.env = Environment(db)
         self.xml_id_map: Dict[str, int] = {}  # xml_id -> database_id
         self._processed_files: List[str] = []
+
+    def _reset_session(self):
+        """Recreate the DB session after connection invalidation."""
+        from backend.core.database import SessionLocal, engine
+
+        try:
+            self.db.close()
+        except Exception:
+            pass
+
+        try:
+            engine.dispose()
+        except Exception:
+            pass
+
+        self.db = SessionLocal()
+        self.env = Environment(self.db)
+
+    def _is_connection_error(self, error: Exception) -> bool:
+        message = str(error).lower()
+        if isinstance(error, (OperationalError, DBAPIError)):
+            if getattr(error, "connection_invalidated", False):
+                return True
+        return (
+            "can't reconnect until invalid transaction is rolled back" in message
+            or "ssl connection has been closed unexpectedly" in message
+            or "server closed the connection unexpectedly" in message
+            or "connection refused" in message
+        )
+
+    def _format_error(self, error: Exception) -> str:
+        message = str(error).strip()
+        if "\n" in message:
+            message = message.splitlines()[0].strip()
+        return message
 
     def load_directory(self, directory_path: str):
         """Scan directory and load all .py files containing RECORDS"""
@@ -73,12 +109,30 @@ class DataLoader:
             for xml_id, definition in pending_records.items():
                 try:
                     self._create_or_update_record(xml_id, definition)
+                    self.db.commit()
                     processed_this_turn.append(xml_id)
                 except ReferenceError:
                     # Reference not yet available, skip for now
                     continue
                 except Exception as e:
-                    logger.error(f"Failed to process record {xml_id}: {e}")
+                    self.db.rollback()
+                    if self._is_connection_error(e):
+                        logger.warning(f"Connection dropped while processing {xml_id}; resetting session and retrying once")
+                        self._reset_session()
+                        try:
+                            self._create_or_update_record(xml_id, definition)
+                            self.db.commit()
+                            processed_this_turn.append(xml_id)
+                            continue
+                        except ReferenceError:
+                            continue
+                        except Exception as retry_error:
+                            self.db.rollback()
+                            logger.error(f"Failed to process record {xml_id}: {self._format_error(retry_error)}")
+                            processed_this_turn.append(xml_id)
+                            continue
+
+                    logger.error(f"Failed to process record {xml_id}: {self._format_error(e)}")
                     # Remove to avoid infinite loop on fatal error
                     processed_this_turn.append(xml_id)
             
@@ -176,29 +230,47 @@ class DataLoader:
         model_name = getattr(model_cls, '_model_name_', model_cls.__name__.lower())
         
         if model_name == 'role' and 'name' in vals:
-            return self.env['role'].search([('name', '=', vals['name'])], limit=1)
+            try:
+                return self.env['role'].search([('name', '=', vals['name'])], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
         
         if model_name == 'user' and 'email' in vals:
-            return self.env['user'].search([('email', '=', vals['email'])], limit=1)
+            try:
+                return self.env['user'].search([('email', '=', vals['email'])], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
             
         if model_name == 'sequence' and 'code' in vals:
-            return self.env['sequence'].search([('code', '=', vals['code'])], limit=1)
+            try:
+                return self.env['sequence'].search([('code', '=', vals['code'])], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
 
         if model_name == 'cron' and 'code' in vals:
-            return self.env['cron'].search([('code', '=', vals['code'])], limit=1)
+            try:
+                return self.env['cron'].search([('code', '=', vals['code'])], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
 
         if model_name == 'plm.eco.stage.line' and 'stage_id' in vals and 'user_id' in vals:
-            return self.env['plm.eco.stage.line'].search([
-                ('stage_id', '=', vals['stage_id']),
-                ('user_id', '=', vals['user_id']),
-            ], limit=1)
+            try:
+                return self.env['plm.eco.stage.line'].search([
+                    ('stage_id', '=', vals['stage_id']),
+                    ('user_id', '=', vals['user_id']),
+                ], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
 
         # Generic fallback for other models (like bcm.*)
         # Check if we can find by name/rec_name
         name_field = getattr(model_cls, '_name_field_', 'name')
         # Skip if name_field is complex (e.g. related field path) or not in vals
         if name_field and '.' not in name_field and name_field in vals:
-            return self.env[model_name].search([(name_field, '=', vals[name_field])], limit=1)
+            try:
+                return self.env[model_name].search([(name_field, '=', vals[name_field])], limit=1)
+            except (ProgrammingError, OperationalError, SQLAlchemyError):
+                return None
 
         return None
 
@@ -214,5 +286,3 @@ def seed_data(db: Session, include_demo: bool = False):
     if include_demo:
         logger.info("Seeding demo data...")
         loader.load_directory('backend/demo')
-    
-    db.commit()

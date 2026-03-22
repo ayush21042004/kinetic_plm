@@ -59,7 +59,10 @@ const loadOptions = async () => {
     
     if (domain && domain.length > 0) {
       const resp = await api.get(`/models/${props.fieldMeta.relation}`, {
-        params: { domain: JSON.stringify(domain) }
+        params: {
+          domain: JSON.stringify(domain),
+          limit: 500
+        }
       });
       localOptions.value = resp.data?.items || [];
     }

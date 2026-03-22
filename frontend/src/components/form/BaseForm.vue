@@ -1870,7 +1870,8 @@ const getEditProps = (field: any) => {
 const handleRelationFocus = async (modelName: string, fieldName?: string) => {
     let relationKey = modelName;
     let params: any = {
-        parent_model: props.modelName  // Pass the parent model name for many2one relation context
+        parent_model: props.modelName,  // Pass the parent model name for many2one relation context
+        limit: 500
     };
     let isDynamic = false;
     
