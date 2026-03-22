@@ -188,6 +188,13 @@ class Eco(ZnovaModel):
                     "type": "secondary",
                     "method": "action_generate_ai_analysis",
                     "invisible": "['|', ('stage_is_last', '=', False), ('update_version', '=', False)]"
+                },
+                {
+                    "name": "download_report_pdf",
+                    "label": "Download PDF",
+                    "type": "secondary",
+                    "method": "action_download_report_pdf",
+                    "invisible": "[('stage_is_last', '=', False)]"
                 }
             ],
             "smart_buttons": [
@@ -613,6 +620,159 @@ class Eco(ZnovaModel):
             "field_changes": comparison["field_changes"],
             "component_changes": comparison["component_changes"],
             "workorder_changes": comparison["workorder_changes"],
+        }
+
+    def _build_report_change_summary(self, comparison_payload):
+        summary_lines = []
+
+        for change in comparison_payload.get("field_changes", []):
+            summary_lines.append(
+                f"{change.get('label', change.get('field', 'Field'))}: "
+                f"{change.get('old_value', '-')} -> {change.get('new_value', '-')}"
+            )
+
+        for change in comparison_payload.get("component_changes", []):
+            change_type = (change.get("change_type") or "updated").capitalize()
+            if change_type == "Added":
+                summary_lines.append(
+                    f"Added component: {change.get('label', 'Component')} ({change.get('new_value', '-')})"
+                )
+            elif change_type == "Removed":
+                summary_lines.append(
+                    f"Removed component: {change.get('label', 'Component')} ({change.get('old_value', '-')})"
+                )
+            else:
+                summary_lines.append(
+                    f"Updated component: {change.get('label', 'Component')} | "
+                    f"{change.get('old_value', '-')} -> {change.get('new_value', '-')}"
+                )
+
+        for change in comparison_payload.get("workorder_changes", []):
+            change_type = (change.get("change_type") or "updated").capitalize()
+            if change_type == "Added":
+                summary_lines.append(
+                    f"Added work order: {change.get('label', 'Operation')} ({change.get('new_value', '-')})"
+                )
+            elif change_type == "Removed":
+                summary_lines.append(
+                    f"Removed work order: {change.get('label', 'Operation')} ({change.get('old_value', '-')})"
+                )
+            else:
+                summary_lines.append(
+                    f"Updated work order: {change.get('label', 'Operation')} | "
+                    f"{change.get('old_value', '-')} -> {change.get('new_value', '-')}"
+                )
+
+        return summary_lines
+
+    def get_report_payload(self):
+        comparison_payload = self.get_comparison_payload()
+        old_record = comparison_payload.get("old_record") or {}
+        new_record = comparison_payload.get("new_record") or {}
+
+        if self.type == "product":
+            target_name = (
+                getattr(getattr(self, "product_id", None), "name", None)
+                or self.eco_name
+                or new_record.get("name")
+                or old_record.get("name")
+                or "-"
+            )
+        else:
+            target_name = (
+                getattr(getattr(self, "bom_id", None), "name", None)
+                or new_record.get("name")
+                or old_record.get("name")
+                or "-"
+            )
+
+        approvals = []
+        db = self._get_db()
+        for approval in self.approval_ids or []:
+            approvals.append({
+                "user": approval.user_id.full_name if approval.user_id else "Unknown",
+                "stage": approval.stage_id.name if approval.stage_id else "-",
+                "approval_required": bool(approval.approval_required),
+                "approved": bool(approval.approved),
+                "approval_time": approval.approval_time.isoformat() if approval.approval_time else None,
+            })
+
+        change_summary = self._build_report_change_summary(comparison_payload)
+        eco_attachments = self._get_eco_attachments(db)
+
+        product_details = {}
+        bom_details = {}
+        if self.type == "product":
+            product_details = {
+                "product_name": self.eco_name or target_name,
+                "internal_reference": self.eco_default_code or "-",
+                "sale_price": self.eco_sale_price if self.eco_sale_price is not None else "-",
+                "cost_price": self.eco_cost_price if self.eco_cost_price is not None else "-",
+                "change_notes": self.eco_change_notes or self.description or "-",
+                "attachments": [item.get("name") for item in eco_attachments if item.get("name")],
+            }
+        else:
+            bom_details = {
+                "bom_name": target_name,
+                "notes": self.description or "-",
+                "proposed_components": [
+                    {
+                        "component": line.component_product_id.name if line.component_product_id else "-",
+                        "quantity": line.quantity,
+                        "notes": line.notes or "-",
+                    }
+                    for line in (self.eco_line_ids or [])
+                ],
+                "proposed_workorders": [
+                    {
+                        "operation": line.operation or "-",
+                        "work_center": line.work_center_id.name if line.work_center_id else "-",
+                        "duration_minutes": line.duration_minutes or 0,
+                    }
+                    for line in (self.eco_workorder_ids or [])
+                ],
+            }
+
+        return {
+            "eco_name": self.name,
+            "eco_type": "Product" if self.type == "product" else "BoM",
+            "target_name": target_name,
+            "current_stage": self.stage_id.name if self.stage_id else "-",
+            "description": self.description or "-",
+            "initiated_by": self.initiated_by_id.full_name if self.initiated_by_id else "-",
+            "generated_at": datetime.utcnow().isoformat(),
+            "update_version": bool(self.update_version),
+            "old_version": f"v{old_record.get('version')}" if old_record.get("version") is not None else "-",
+            "new_version": f"v{new_record.get('version')}" if new_record.get("version") is not None else "-",
+            "old_record": old_record,
+            "new_record": new_record,
+            "change_summary": change_summary or ["No comparison changes available."],
+            "diff_short": change_summary[:8] if change_summary else ["No short diff available."],
+            "ai_summary": self.ai_impact_analysis or "AI summary not generated yet.",
+            "field_changes": comparison_payload.get("field_changes", []),
+            "component_changes": comparison_payload.get("component_changes", []),
+            "workorder_changes": comparison_payload.get("workorder_changes", []),
+            "approvals": approvals,
+            "product_details": product_details,
+            "bom_details": bom_details,
+        }
+
+    def generate_report_pdf(self):
+        from backend.services.eco_report_service import build_eco_report_pdf
+
+        return build_eco_report_pdf(self.get_report_payload())
+
+    def action_download_report_pdf(self):
+        if not self.stage_id or not self.stage_id.is_last_stage:
+            raise UserError("PDF report is available only when the ECO is in the last stage.")
+
+        return {
+            "type": "ir.actions.client",
+            "tag": "download_file",
+            "params": {
+                "url": f"/models/{self._model_name_}/{self.id}/report_pdf",
+                "filename": f"{self.name}.pdf",
+            }
         }
 
     def _ensure_stage_approval_tracking(self, db):

@@ -809,6 +809,25 @@ const processServerAction = async (action: any) => {
                 path: `/comparison/${targetModel}/${targetId}`,
             });
         }
+    } else if (action.tag === 'download_file') {
+        const url = action.params?.url;
+        const filename = action.params?.filename || 'download.pdf';
+        if (!url) return;
+
+        try {
+            const response = await api.get(url, { responseType: 'blob' });
+            const blobUrl = window.URL.createObjectURL(response.data);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (e: any) {
+            const { handleApiError } = useErrorHandler();
+            handleApiError(e);
+        }
     }
   }
 };

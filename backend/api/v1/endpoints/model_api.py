@@ -1290,6 +1290,43 @@ def get_record_comparison(
         db.rollback()
         raise e
 
+@router.get("/{model_name}/{id}/report_pdf")
+def download_record_pdf_report(
+    model_name: str,
+    id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    model_cls = registry.get_model(model_name)
+    if not model_cls:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    env = Environment(db, user_id=current_user.id)
+    record = env[model_name].browse(id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    if not policy_engine.can_access_record(current_user, model_name, "read", record, context=None):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    method = getattr(record, "generate_report_pdf", None)
+    if not method or not callable(method):
+        raise HTTPException(status_code=400, detail=f"PDF report is not supported for {model_name}")
+
+    try:
+        pdf_bytes = method()
+        filename = f"{getattr(record, 'name', f'{model_name}-{id}')}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        raise e
+
 # ====================================
 # Wizard (TransientModel) Endpoints
 # ====================================
