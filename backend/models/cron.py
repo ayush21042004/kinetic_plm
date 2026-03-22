@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 from backend.core.znova_model import ZnovaModel
 from backend.core import fields
 from backend.core.exceptions import ValidationError, UserError
+from backend.core.base_model import Environment
 import re
 import importlib
 import logging
