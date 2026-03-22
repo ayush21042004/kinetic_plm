@@ -967,9 +967,12 @@ watch(() => [props.model, props.initialId as string, route.query], ([newModel, n
 @use "../styles/variables" as v;
 
 .generic-view {
+  flex: 1;
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   /* Ensure dropdowns can extend beyond view bounds */
   position: relative;
 }
@@ -981,6 +984,14 @@ watch(() => [props.model, props.initialId as string, route.query], ([newModel, n
   min-height: 0;
   overflow: visible; /* Changed to allow dropdowns to extend beyond */
   width: 100%; /* Ensure full width */
+}
+
+.view-content-root > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
 .detail-container {

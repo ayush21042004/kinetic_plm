@@ -378,14 +378,19 @@ const getGroupColor = (group: any) => {
   gap: 1.5rem;
   padding: 1.5rem;
   overflow-x: auto;
+  overflow-y: hidden;
   align-items: flex-start;
   min-height: 200px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .kanban-container.is-flat {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-auto-rows: max-content;
   align-content: start;
+  align-items: start;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -394,7 +399,8 @@ const getGroupColor = (group: any) => {
   flex: 0 0 320px;
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  align-self: stretch;
+  min-height: 0;
   background: rgba(v.$bg-secondary, 0.4);
   backdrop-filter: blur(8px);
   border-radius: 1rem;
@@ -408,6 +414,7 @@ const getGroupColor = (group: any) => {
 }
 
 .column-header {
+  flex-shrink: 0;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid v.$border-color;
   
@@ -455,6 +462,8 @@ const getGroupColor = (group: any) => {
   gap: 1rem;
   overflow-y: auto;
   min-height: 100px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .kanban-card {
@@ -575,7 +584,10 @@ const getGroupColor = (group: any) => {
 }
 
 .kanban-card-flat {
-  min-height: 0;
+  display: block;
+  align-self: start;
+  min-width: 0;
+  height: max-content;
 }
 
 .empty-state {

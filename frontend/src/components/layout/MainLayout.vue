@@ -1307,6 +1307,8 @@ const getInitials = (name: string) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+  min-width: 0;
 
   @media (max-width: 1023px) {
     width: 100vw;
@@ -1325,6 +1327,8 @@ const getInitials = (name: string) => {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  min-height: 0;
+  min-width: 0;
   
   @media (max-width: 1023px) {
     width: 100vw;
@@ -1338,6 +1342,8 @@ const getInitials = (name: string) => {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-height: 0;
+  min-width: 0;
 }
 
 // ========== FIXED TOP HEADER ==========

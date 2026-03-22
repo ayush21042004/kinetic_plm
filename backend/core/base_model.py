@@ -97,13 +97,21 @@ class Recordset:
             query = self._model.apply_domain_to_query(query, domain, env=self.env)
         
         if order:
-            # Simple order handling
+            # Support SQL-style order strings like "priority asc, next_call desc".
             for o in order.split(','):
                 o = o.strip()
-                if o.endswith(' desc'):
-                    query = query.order_by(getattr(self._model, o[:-5]).desc())
+                if not o:
+                    continue
+
+                parts = o.split()
+                field_name = parts[0]
+                direction = parts[1].lower() if len(parts) > 1 else "asc"
+
+                column = getattr(self._model, field_name)
+                if direction == "desc":
+                    query = query.order_by(column.desc())
                 else:
-                    query = query.order_by(getattr(self._model, o))
+                    query = query.order_by(column.asc())
                     
         if limit:
             query = query.limit(limit)
